@@ -203,15 +203,14 @@ class RentCard(ActionCard):
 class Set:
     def __init__(self, color:PropertyCardColor):
         self.color = color
-        self.charge_value = property_charge_values[color][0]
-        self.count = 1
         self.full = False
+        self.cards = []
 
-    def add(self):
+    def add(self, card):
         if not self.full:
-            self.count += 1
-            self.charge_value = property_charge_values[self.color][self.count-1]
-            self.full = (self.count == len(property_charge_values[self.color]))
+            self.cards.append(card)
+            self.charge_value = property_charge_values[self.color][len(self.cards)-1]
+            self.full = (len(self.cards) == len(property_charge_values[self.color]))
         else:
             raise AssertionError('Set is full. Cannot add card to set')
 

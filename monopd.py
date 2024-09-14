@@ -48,17 +48,16 @@ class DiscardPile(Pile):
             outstr += "\t{}\n".format(str(card))
         return outstr
 
-class PropertyPile(Pile):
+class PropertyPile():
     def __init__(self):
         self.sets = []
-        super().__init__()
 
     def add_card(self, card: PropertyCard):
-        self.cards.append(card)
         for s in self.sets:
             if s.get_color() == card.get_color() and not s.is_full():
-                s.add()
+                s.add(card)
                 return
+        if card.get_color() == PropertyCardColor.ANY
         new_set = Set(card.get_color())
         self.sets.append(new_set)
 
@@ -156,7 +155,6 @@ class Game:
         if self.game_over:
             raise AssertionError("Game over - cannot start new turn")
         self.draw_2_cards(self.players[self.active_player])
-        #print(self.players[self.active_player])
 
     def play_card(self, index, cash:bool):
         player = self.players[self.active_player]
@@ -190,7 +188,11 @@ class Game:
         else:
             self.active_player = (self.active_player + 1) % len(self.players)
 
+    def is_game_over(self):
+        return self.game_over
+
 def handle_turn(game):
+    game.start_turn()
     turn_count = 0
     aborted = False
     while not aborted and turn_count < 3:
@@ -211,14 +213,5 @@ def handle_turn(game):
 
 game = Game(players)
 
-game.start_turn()
-handle_turn(game)
-
-game.start_turn()
-handle_turn(game)
-
-game.start_turn()
-handle_turn(game)
-
-game.start_turn()
-handle_turn(game)
+while not game.is_game_over():
+    handle_turn(game)
