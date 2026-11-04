@@ -85,6 +85,14 @@ function newGame() {
 function refresh() {
   wasm.state(viewSeat());
   S = readOut();
+  // In Play mode a bot is only asked about Just Say No / Double The Rent when
+  // it holds one, so showing it "deciding" would reveal its hand. Let it
+  // answer straight away instead.
+  while (ui.mode === 'play' && S.current !== null && S.current !== human() && (S.phase === 'respond' || S.phase === 'double')) {
+    wasm.bot_step();
+    wasm.state(viewSeat());
+    S = readOut();
+  }
   render();
   schedule();
 }

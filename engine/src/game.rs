@@ -893,7 +893,11 @@ impl Game {
         if self.winner.is_some() {
             return true;
         }
-        if let Some(w) = (0..self.num_players).find(|&p| self.players[p].complete_sets() >= SETS_TO_WIN) {
+        // A Forced Deal can complete a third set for both players at once; the
+        // player whose turn it is gets the win, then seat order after them.
+        let n = self.num_players;
+        let order = (0..n).map(|r| (self.active + r) % n);
+        if let Some(w) = order.clone().find(|&p| self.players[p].complete_sets() >= SETS_TO_WIN) {
             self.winner = Some(w);
             self.phase = Phase::GameOver;
             self.pending = None;
@@ -953,6 +957,21 @@ impl Game {
     pub fn determinize(&self, seat: usize, seed: u64) -> Game {
         let mut g = self.clone();
         let mut rng = Rng::new(seed);
+        // Cards the current phase proves someone holds stay in their hand: a
+        // player being asked to Just Say No has one, and so does a player being
+        // offered a Double The Rent.
+        let mut kept: Vec<Vec<CardId>> = vec![Vec::new(); g.num_players];
+        let must_hold = match g.phase {
+            Phase::Respond { jsn_count } => Some((g.responder(jsn_count), JSN)),
+            Phase::OfferDouble { .. } => Some((g.active, DOUBLE)),
+            _ => None,
+        };
+        if let Some((p, kind)) = must_hold {
+            if p != seat {
+                let c = g.players[p].take_from_hand(kind);
+                kept[p].push(c);
+            }
+        }
         let mut pool = std::mem::take(&mut g.deck);
         let mut sizes = vec![0; g.num_players];
         for p in 0..g.num_players {
@@ -966,6 +985,7 @@ impl Game {
             if p != seat {
                 let at = pool.len() - sizes[p];
                 g.players[p].hand = pool.split_off(at);
+                g.players[p].hand.append(&mut kept[p]);
             }
         }
         g.deck = pool;
@@ -1055,6 +1075,52 @@ impl Game {
         if let Some(bad) = seen.iter().position(|&n| n != 1) {
             panic!("card {bad} appears {} times", seen[bad]);
         }
+        // Phase-specific consistency.
+        match self.phase {
+            Phase::GameOver => {
+                assert!(self.pending.is_none());
+                if let Some(w) = self.winner {
+                    assert!(self.players[w].complete_sets() >= SETS_TO_WIN, "winner without 3 sets");
+                } else {
+                    assert!(self.turn >= self.max_turns, "game over without a winner before the turn limit");
+                }
+            }
+            Phase::Main => {
+                assert!(self.pending.is_none(), "Main phase with a pending resolution");
+                assert!(self.plays_left > 0, "Main phase with no plays left should have ended the turn");
+            }
+            Phase::Discard => {
+                assert!(self.players[self.active].hand.len() > HAND_LIMIT, "Discard phase at or under the limit");
+            }
+            Phase::ChooseTarget(_) => assert!(self.pending.is_none()),
+            Phase::OfferDouble { multiplier, .. } => {
+                assert!(self.plays_left > 0 && self.players[self.active].holds(DOUBLE));
+                assert!(matches!(multiplier, 1 | 2), "more doubles than plays allow");
+            }
+            Phase::Respond { jsn_count } => {
+                let r = self.pending.as_ref().expect("Respond without a pending resolution");
+                assert!(r.idx < r.victims.len());
+                assert!(self.players[self.responder(jsn_count)].holds(JSN), "responder has no Just Say No");
+            }
+            Phase::Pay { owed } => {
+                let r = self.pending.as_ref().expect("Pay without a pending resolution");
+                assert!(matches!(r.effect, Effect::Charge(_)));
+                assert!(owed > 0);
+                assert!(
+                    self.players[r.victim()].payable_value() > owed as u32,
+                    "payer should have paid everything automatically"
+                );
+            }
+        }
+        if let Some(w) = self.winner {
+            assert!(self.is_over());
+            let _ = w;
+        } else {
+            for p in &self.players {
+                assert!(p.complete_sets() < SETS_TO_WIN || self.is_over(), "unnoticed winner");
+            }
+        }
+        assert!(self.players.iter().all(|p| p.hand.len() <= DECK_SIZE));
         if !self.is_over() {
             assert!(!self.legal_actions().is_empty(), "no legal actions in {:?}", self.phase);
         }

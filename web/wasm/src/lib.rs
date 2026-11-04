@@ -145,7 +145,11 @@ fn apply_logged(app: &mut App, a: Action) {
     let before: Vec<u32> = g.players.iter().map(|p| p.payable_value()).collect();
     let (turn_before, active_before) = (g.turn, g.active);
     app.game.apply_unchecked(a);
-    app.log.push((who as i32, text));
+    // Declining a Just Say No or a Double is only asked of players who hold
+    // one, so logging it would reveal their hand. Plays are logged.
+    if !matches!(a, Action::Accept | Action::DeclineDouble) {
+        app.log.push((who as i32, text));
+    }
     if app.game.turn != turn_before && !matches!(a, Action::EndTurn | Action::Discard(_)) {
         app.log.push((active_before as i32, "is out of plays: turn ends".to_string()));
     } else if app.game.phase == Phase::Discard && !matches!(a, Action::EndTurn | Action::Discard(_)) {
@@ -457,4 +461,34 @@ fn jstr(s: &str) -> String {
     }
     out.push('"');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The log must not reveal that a player held a Just Say No or a Double
+    /// they chose not to use.
+    #[test]
+    fn log_never_reveals_declined_responses() {
+        let mut saw_jsn = false;
+        for seed in 0..300 {
+            new_game(3, seed);
+            for _ in 0..5000 {
+                if bot_step() == 0 {
+                    break;
+                }
+            }
+            APP.with(|a| {
+                let app = a.borrow();
+                for (_, t) in &app.as_ref().unwrap().log {
+                    assert!(!t.starts_with("accept"), "log reveals a held JSN: {t}");
+                    assert!(!t.starts_with("don't double"), "log reveals a held Double: {t}");
+                    saw_jsn |= t.contains("Just Say No");
+                }
+            });
+            state(-1); // the JSON builder runs on every state
+        }
+        assert!(saw_jsn, "test should see some Just Say No plays");
+    }
 }

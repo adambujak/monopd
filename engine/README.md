@@ -3,7 +3,8 @@
 A fast Monopoly Deal engine in Rust, built for self-play RL. No dependencies.
 
 ```bash
-cargo test                                         # rules + 600 fuzzed games
+cargo test                                         # rule tests + fuzzing (hidden info, coverage, invariants)
+FUZZ_GAMES=300000 cargo test --release --test fuzz -- --ignored   # long fuzz, every check after every step
 cargo run --release --bin simulate -- 20000 3      # random-vs-random benchmark
 cargo run --release --bin play -- 2                # play vs a random bot
 ```

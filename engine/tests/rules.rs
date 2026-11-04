@@ -689,3 +689,34 @@ fn rainbows_alone_do_not_make_a_complete_set() {
     g.give_table(0, RAINBOW, Color::Brown);
     assert!(g.players[0].is_complete(Color::Brown));
 }
+
+#[test]
+fn forced_deal_completing_both_players_sets_goes_to_the_active_player() {
+    // P1 plays Forced Deal: takes P0's Railroad (completing P1's Railroads) and
+    // gives P1's Utility (completing P0's Utilities). Both reach 3 sets at once.
+    let mut g = Game::new_test(2);
+    g.active = 1;
+    for c in [Color::Green, Color::Red] {
+        for _ in 0..3 {
+            g.give_table(0, Kind::Property(c), c);
+        }
+    }
+    for c in [Color::Yellow, Color::Orange] {
+        for _ in 0..3 {
+            g.give_table(1, Kind::Property(c), c);
+        }
+    }
+    g.give_table(0, Kind::Property(Color::Utility), Color::Utility);
+    g.give_table(0, Kind::Property(Color::Railroad), Color::Railroad);
+    g.give_table(1, Kind::Property(Color::Utility), Color::Utility);
+    g.give_table(1, Kind::Wild(WildType::LightBlueRailroad), Color::Railroad);
+    g.give_table(1, Kind::Wild(WildType::Rainbow), Color::Railroad);
+    g.give_table(1, Kind::Wild(WildType::Rainbow), Color::Railroad);
+    g.give_hand(1, act(ActionType::ForcedDeal));
+    assert_eq!((g.players[0].complete_sets(), g.players[1].complete_sets()), (2, 2));
+    step(&mut g, PlayAction(ActionType::ForcedDeal));
+    step(&mut g, TargetProperty { rel: 1, kind: Kind::Property(Color::Railroad), color: Color::Railroad });
+    step(&mut g, TargetProperty { rel: 0, kind: Kind::Property(Color::Utility), color: Color::Utility });
+    assert_eq!((g.players[0].complete_sets(), g.players[1].complete_sets()), (3, 3));
+    assert_eq!(g.winner, Some(1), "the player who made the move wins the tie");
+}
