@@ -6,6 +6,9 @@ const COLOR_INK = ['#fff', '#0b3550', '#fff', '#fff', '#fff', '#4a3a00', '#fff',
 const COLOR_LABEL = ['Brown', 'Light Blue', 'Pink', 'Orange', 'Red', 'Yellow', 'Green', 'Dark Blue', 'Railroad', 'Utility'];
 const MONEY_COLOR = { 1: '#fff0a0', 2: '#ffc4b2', 3: '#c3efc6', 4: '#bfe2ff', 5: '#dccbff', 10: '#ffcf5c' };
 const PLAYER_VAR = ['--p0', '--p1', '--p2', '--p3', '--p4'];
+// Kind indices (see Kind::index in engine/src/cards.rs: actions start at 18).
+const KIND_JSN = 19;
+const KIND_DOUBLE = 24;
 // [icon, card colour, one-line rules reminder]
 const ACTION_STYLE = {
   'Deal Breaker': ['💥', '#7b3fe4', 'Steal a complete set'],
@@ -14,14 +17,14 @@ const ACTION_STYLE = {
   'Forced Deal': ['🔁', '#1f8ef1', 'Swap a property with someone'],
   'Debt Collector': ['💼', '#0fa37f', 'One player pays you $5M'],
   "It's My Birthday": ['🎂', '#f0479a', 'Everyone pays you $2M'],
-  'Double The Rent': ['✖️2', '#f4a100', 'Play with a rent card'],
+  'Double The Rent': ['×2', '#f4a100', 'Play with a rent card'],
   'House': ['🏠', '#2bb24c', '+$3M rent on a full set'],
   'Hotel': ['🏨', '#d6336c', '+$4M rent on a full set'],
   'Pass Go': ['🎲', '#ff5a5f', 'Draw 2 cards'],
 };
 const PAWN = '<svg class="pawn" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="4.2"/><path d="M8.2 11.5h7.6l2.2 7.5H6z"/><rect x="4" y="18.5" width="16" height="3.5" rx="1.75"/></svg>';
 
-const ui = { mode: 'play', players: 3, seed: 0, reveal: false, paused: false, speed: 55, timer: null };
+const ui = { mode: 'play', players: 3, seed: 0, reveal: false, bankDetail: false, paused: false, speed: 55, timer: null };
 let wasm, CAT, S, SKIN = {}, prevIds = new Set(), actionMap = new Map();
 
 // Stable name for each card kind, used as the key in cards/skin.json.
@@ -124,25 +127,25 @@ function cardHTML(card, size = '', key = null) {
     const c = K.colors[0];
     style = `--cc:${COLOR_HEX[c]};--ci:${COLOR_INK[c]}`;
     inner = `<div class="head"><span>${COLOR_LABEL[c]}</span></div>
-      <div class="body"><div class="tag">Rent</div>${rentRows(c)}</div>${coin(K.value)}`;
+      <div class="body${CAT.colors[c].size > 3 ? ' tight' : ''}">${CAT.colors[c].size > 3 ? '' : '<div class="tag">Rent</div>'}${rentRows(c)}</div>${coin(K.value)}`;
   } else if (K.type === 'wild') {
     const any = K.colors.length > 2;
     inner = `<div class="head wildhead" style="background:${splitBg(K.colors)}"><span class="sticker">WILD</span></div>
       <div class="body">${any
         ? '<div class="anyc">Any colour</div><div class="tag">No cash value</div>'
-        : K.colors.map((c) => `<div class="chip" style="background:${COLOR_HEX[c]};color:${COLOR_INK[c]}">${COLOR_LABEL[c]}</div>`).join('')}</div>
+        : K.colors.map((c) => `<div class="chip" style="background:${COLOR_HEX[c]};color:${COLOR_INK[c]}">${COLOR_LABEL[c]}<small>$${CAT.colors[c].rent.join('·')}M</small></div>`).join('')}</div>
       ${any ? '' : coin(K.value)}`;
   } else if (K.type === 'action') {
     const [icon, color, tip] = ACTION_STYLE[K.short] || ['?', '#555', ''];
     style = `--ac:${color}`;
-    inner = `<div class="burst"><span>${icon}</span></div><div class="ribbon">${K.short}</div><div class="tip">${tip}</div>${coin(K.value)}`;
+    inner = `<div class="burst${icon === '×2' ? ' txt' : ''}"><span>${icon}</span></div><div class="ribbon">${K.short}</div><div class="tip">${tip}</div>${coin(K.value)}`;
   } else if (K.type === 'rent') {
     const cs = K.colors, any = cs.length > 2;
     style = `--ac:${any ? '#30364f' : '#fff7e6'}`;
     const disc = any ? `conic-gradient(${COLOR_HEX.join(',')}, ${COLOR_HEX[0]})` : splitBg(cs);
-    inner = `<div class="burst disc" style="background:${disc}"><span>RENT</span></div>
+    inner = `<div class="burst disc" style="background:${disc}">${any ? '<span>ANY</span>' : ''}</div>
       <div class="ribbon">${any ? 'Wild Rent' : 'Rent'}</div>
-      <div class="tip">${any ? 'Any colour · one player pays' : `${COLOR_LABEL[cs[0]]} or ${COLOR_LABEL[cs[1]]} · everyone pays`}</div>${coin(K.value)}`;
+      <div class="tip">${any ? 'Any colour · one player pays' : `${COLOR_LABEL[cs[0]]} or ${COLOR_LABEL[cs[1]]} · all players pay`}</div>${coin(K.value)}`;
   } else {
     style = `--mc:${MONEY_COLOR[K.value]}`;
     inner = `<div class="note"><span class="corner tl">${K.value}</span><span class="corner br">${K.value}</span>
@@ -171,9 +174,46 @@ function setHTML(seat, set) {
   const blds = (set.house !== null ? '<span class="bld" title="House">🏠</span>' : '') +
     (set.hotel !== null ? '<span class="bld" title="Hotel">🏨</span>' : '');
   const cards = set.cards.map((cd) => cardHTML(cd, 'sm', `tcard:${seat}:${c}:${cd.k}`)).join('');
+  // Dashed placeholders show how many more cards complete the set.
+  const missing = Math.max(0, col.size - set.cards.length);
+  const ghosts = Array.from({ length: missing }, () =>
+    `<div class="card sm ghost" style="--cc:${COLOR_HEX[c]}"><span>${COLOR_LABEL[c]}</span></div>`).join('');
   return `<div class="set${cls}" data-key="${key}" style="--sc:${COLOR_HEX[c]}">
     <div class="set-head"><span class="count">${set.cards.length}/${col.size}</span><span class="rent">$${set.rent}M</span>${blds}</div>
-    <div class="stack">${cards}</div></div>`;
+    <div class="stack">${cards}${ghosts}</div>
+    ${set.complete ? '<div class="set-flag">SET!</div>' : ''}</div>`;
+}
+
+function sortedSets(table) {
+  const progress = (s) => s.cards.length / CAT.colors[s.color].size;
+  return [...table].sort((a, b) => (b.complete - a.complete) || (progress(b) - progress(a)) || (a.color - b.color));
+}
+
+// A player's bank. Your own bank is always open to you. Other banks are
+// squared up like a real pile: you see the card count and the newest card on
+// top, unless "Bank details" is on (the perfect-memory view).
+function bankHTML(i, p, open) {
+  const n = p.bank.length;
+  if (!n) return `<div class="bank-box"><div class="bank-title">Bank</div><div class="bank-empty">empty</div></div>`;
+  if (open) {
+    const groups = new Map();
+    for (const cd of p.bank) groups.set(cd.k, [...(groups.get(cd.k) || []), cd]);
+    const items = [...groups.entries()]
+      .sort((a, b) => CAT.kinds[b[0]].value - CAT.kinds[a[0]].value)
+      .map(([k, cds]) => {
+        const K = CAT.kinds[k], key = `bank:${i}:${k}`;
+        const name = K.type === 'money' ? '' : `<small>${esc(K.type === 'rent' ? K.name : K.short)}</small>`;
+        const bg = K.type === 'money' ? MONEY_COLOR[K.value] : '#fff';
+        return `<div class="bank-chip${actionMap.has(key) ? ' clickable' : ''}" data-key="${key}" title="${esc(K.name)}" style="background:${bg}">
+          <b>$${K.value}M</b>${name}${cds.length > 1 ? `<span class="times">×${cds.length}</span>` : ''}</div>`;
+      })
+      .join('');
+    return `<div class="bank-box open"><div class="bank-title">Bank <b>$${p.bankValue}M</b></div><div class="bank-list">${items}</div></div>`;
+  }
+  const layers = Array.from({ length: Math.min(n, 4) - 1 }, (_, j) => `<div class="layer" style="--d:${(j + 1) * 3}px"></div>`).join('');
+  return `<div class="bank-box"><div class="bank-title">Bank</div>
+    <div class="pile">${layers}${cardHTML(p.bank[n - 1], 'sm')}</div>
+    <div class="bank-count">${n} card${n === 1 ? '' : 's'}</div></div>`;
 }
 
 function playerHTML(i, big) {
@@ -187,30 +227,30 @@ function playerHTML(i, big) {
   const isHuman = human() === i;
   const tag = isHuman ? 'You' : 'Random bot';
   const table = p.table.length
-    ? p.table.map((s) => setHTML(i, s)).join('')
-    : '<span class="empty-note">No properties yet</span>';
-  const bank = p.bank.length
-    ? p.bank.map((cd) => cardHTML(cd, 'xs', `bank:${i}:${cd.k}`)).join('')
-    : '<span class="empty-note">Empty</span>';
-  let hand;
-  if (p.hand) {
-    const size = big ? '' : 'xs';
-    hand = `<div class="hand">${p.hand.length ? p.hand.map((cd) => cardHTML(cd, size, isHuman || ui.mode === 'watch' ? `hand:${cd.k}` : null)).join('') : '<span class="empty-note">no cards</span>'}</div>`;
-  } else {
-    hand = backs(p.handCount, 'xs');
+    ? sortedSets(p.table).map((s) => setHTML(i, s)).join('')
+    : '<div class="no-props">No properties yet</div>';
+  const stars = [0, 1, 2].map((j) => `<span class="star ${j < p.sets ? 'on' : ''}">★</span>`).join('');
+  const handCount = `<span class="handcount" title="Cards in hand"><span class="mini-back"></span><b>${p.handCount}</b></span>`;
+
+  let handRow = '';
+  if (isHuman && p.hand) {
+    handRow = `<div class="myhand"><div class="myhand-title">Your hand</div><div class="hand">${p.hand.length
+      ? p.hand.map((cd) => cardHTML(cd, '', `hand:${cd.k}`)).join('')
+      : '<span class="empty-note">no cards</span>'}</div></div>`;
+  } else if (ui.reveal && p.hand && p.hand.length) {
+    handRow = `<div class="peek"><span class="peek-title">Hand</span>${p.hand.map((cd) => cardHTML(cd, 'xs')).join('')}</div>`;
   }
   return `<section class="${classes.join(' ')}" data-key="${pkey}" style="--pc:${pc(i)}">
     <div class="phead">
       <span class="token">${PAWN}</span><span class="pname">P${i}</span><span class="ptag">${tag}</span>
-      <div class="badges">
-        <span class="badge sets">Sets <b>${p.sets}/3</b></span>
-        <span class="badge">Bank <b>$${p.bankValue}M</b></span>
-        <span class="badge">Hand <b>${p.handCount}</b></span>
-      </div>
+      <span class="stars" title="${p.sets} of 3 complete sets">${stars}</span>
+      ${handCount}
     </div>
-    <div class="zone-label">Properties</div><div class="table">${table}</div>
-    <div class="zone-label">Bank</div><div class="bank">${bank}</div>
-    <div class="zone-label">Hand</div>${hand}
+    <div class="pbody">
+      <div class="table">${table}</div>
+      ${bankHTML(i, p, isHuman || ui.bankDetail)}
+    </div>
+    ${handRow}
   </section>`;
 }
 
@@ -237,8 +277,8 @@ function hintText() {
     case 'main': return 'Click a highlighted card in your hand to bank it or play it. Click a wild on your table to move it (that uses a play).';
     case 'target': return 'Click a highlighted player, property or set.';
     case 'pay': return 'Click cards in your bank or on your table to pay. No change is given.';
-    case 'respond': return 'You hold a Just Say No. Use it, or accept.';
-    case 'double': return 'You hold a Double The Rent. Play it to double the charge (it uses a play).';
+    case 'respond': return 'You hold a Just Say No. Click it in your hand (or the button) to cancel, or accept.';
+    case 'double': return 'Click the Double The Rent in your hand (or the button) to double the charge. It uses a play.';
     case 'discard': return 'You have more than 7 cards. Click cards in your hand to discard them.';
   }
   return '';
@@ -294,6 +334,9 @@ function keyFor(a) {
     case 'targetSet': case 'payBuilding': return `set:${a.seat}:${a.color}`;
     case 'payBank': return `bank:${a.seat}:${a.kind}`;
     case 'targetPlayer': return `player:${a.seat}`;
+    // Responses can also be made by clicking the card in your hand.
+    case 'double': return `hand:${KIND_DOUBLE}`;
+    case 'jsn': return `hand:${KIND_JSN}`;
     default: return null;
   }
 }
@@ -309,15 +352,31 @@ function onBoardClick(e) {
   while (el && !actionMap.has(el.dataset.key)) el = el.parentElement && el.parentElement.closest('[data-key]');
   if (!el) { hidePopover(); return; }
   const actions = actionMap.get(el.dataset.key);
-  if (actions.length === 1) act(actions[0].i);
-  else showPopover(el, actions);
+  const only = actions.length === 1 ? actions[0] : null;
+  // Banking an action or rent card throws away its effect, so always confirm it.
+  if (only && only.verb === 'bank' && CAT.kinds[only.kind].type !== 'money') {
+    showPopover(el, actions, whyNotPlayable(only.kind));
+  } else if (only) {
+    act(only.i);
+  } else {
+    showPopover(el, actions);
+  }
   e.stopPropagation();
 }
 
-function showPopover(el, actions) {
+function whyNotPlayable(k) {
+  if (k === KIND_DOUBLE) return 'You play this right after charging rent: play a rent card first and you’ll be offered the double.';
+  if (k === KIND_JSN) return 'You play this in response, when someone targets you.';
+  const K = CAT.kinds[k];
+  if (K.type === 'rent') return 'You need a property of a matching colour on the table to charge this rent.';
+  if (K.short === 'House' || K.short === 'Hotel') return 'This needs a complete set (and a hotel needs a house). Railroads and utilities can’t have buildings.';
+  return 'There’s no valid target for this right now.';
+}
+
+function showPopover(el, actions, note = '') {
   const pop = $('popover');
   const title = el.getAttribute('title') || 'Choose';
-  pop.innerHTML = `<div class="ptitle">${esc(title)}</div>` +
+  pop.innerHTML = `<div class="ptitle">${esc(title)}</div>` + (note ? `<div class="pnote">${esc(note)}</div>` : '') +
     actions.map((a) => `<button data-act="${a.i}">${esc(a.label)}</button>`).join('');
   pop.hidden = false;
   const r = el.getBoundingClientRect();
@@ -362,7 +421,8 @@ function bindControls() {
   ui.speed = +$('speed').value;
   $('pause').onclick = () => { ui.paused = !ui.paused; refresh(); };
   $('stepbtn').onclick = () => { ui.paused = true; if (S.current !== null) wasm.bot_step(); refresh(); };
-  $('reveal').onchange = (e) => { ui.reveal = e.target.checked; refresh(); };
+  $("reveal").onchange = (e) => { ui.reveal = e.target.checked; refresh(); };
+  $("bankinfo").onchange = (e) => { ui.bankDetail = e.target.checked; refresh(); };
   document.querySelector('.board').addEventListener('click', onBoardClick);
   $('popover').addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');

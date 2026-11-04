@@ -811,8 +811,10 @@ impl Game {
         let value = match action {
             Action::PayBank(k) => {
                 let bank = &mut self.players[payer].bank;
-                let i = bank.iter().position(|&c| kind_of(c) == k).expect("not in bank");
-                let c = bank.swap_remove(i);
+                // Pay with the most recently banked card of this kind, keeping the
+                // bank in deposit order (the UI shows the newest card on top).
+                let i = bank.iter().rposition(|&c| kind_of(c) == k).expect("not in bank");
+                let c = bank.remove(i);
                 self.players[receiver].bank.push(c);
                 k.value()
             }
