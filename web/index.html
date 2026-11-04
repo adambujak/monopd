@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monopoly Deal Table</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">MD</span> Monopoly Deal <span class="sub">engine viewer</span></div>
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-mode="play" class="on">Play</button>
+        <button data-mode="watch">Watch bots</button>
+      </div>
+      <label>Players
+        <select id="players">
+          <option>2</option><option selected>3</option><option>4</option><option>5</option>
+        </select>
+      </label>
+      <label>Seed <input id="seed" type="number" min="0" max="4294967295"></label>
+      <button id="dice" title="Random seed">🎲</button>
+      <button id="new" class="primary">New game</button>
+      <span class="sep"></span>
+      <label class="speed">Speed <input id="speed" type="range" min="0" max="100" value="55"></label>
+      <button id="pause" class="watch-only">Pause</button>
+      <button id="stepbtn" class="watch-only">Step</button>
+      <label class="play-only check"><input id="reveal" type="checkbox"> Reveal hands</label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="board">
+      <div id="opponents" class="opponents"></div>
+      <div id="center" class="center"></div>
+      <div id="me"></div>
+    </section>
+    <aside class="side">
+      <div class="panel" id="status"></div>
+      <div class="panel grow">
+        <h3>Game log</h3>
+        <ol id="log" class="log"></ol>
+      </div>
+      <details class="panel" id="alllegal">
+        <summary>All legal actions</summary>
+        <div id="legal-list"></div>
+      </details>
+    </aside>
+  </main>
+
+  <div id="popover" class="popover" hidden></div>
+  <div id="error" class="error" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
