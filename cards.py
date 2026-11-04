@@ -202,6 +202,7 @@ class RentCard(ActionCard):
 
 class Set:
     def __init__(self, color:PropertyCardColor):
+        assert(color is not None)
         self.color = color
         self.full = False
         self.cards = []
@@ -223,11 +224,14 @@ class Set:
     def is_full(self):
         return self.full
 
+    def get_count(self):
+        return len(self.cards)
+
     def __str__(self):
         if self.is_full():
             return "FULL SET! - {}".format(self.color.name)
         else:
-            return "SET - {} - {} properties".format(self.color.name, self.count)
+            return "SET - {} - {} properties".format(self.color.name, len(self.cards))
 
 class Deck:
     def __init__(self):

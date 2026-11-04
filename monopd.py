@@ -57,9 +57,16 @@ class PropertyPile():
             if s.get_color() == card.get_color() and not s.is_full():
                 s.add(card)
                 return
-        if card.get_color() == PropertyCardColor.ANY
+        #if card.get_color() == PropertyCardColor.ANY:
         new_set = Set(card.get_color())
+        new_set.add(card)
         self.sets.append(new_set)
+
+    def __str__(self):
+        outstr = "PROPERTY PILE: \n"
+        for s in self.sets:
+            outstr += s.__str__() + ", "
+        return outstr
 
 class Player:
     def __init__(self, name):
