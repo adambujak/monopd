@@ -351,7 +351,8 @@ fn short_payer_hands_over_everything() {
     assert_eq!(g.phase, Phase::Main);
     assert_eq!(bank_total(&g, 0), 1);
     assert_eq!(g.players[0].pile(Color::Green).len(), 1, "property goes to receiver's table");
-    assert_eq!(g.players[1].pile(Color::Green).len(), 1, "rainbow wild can't be paid");
+    assert!(g.players[1].pile(Color::Green).is_empty());
+    assert_eq!(g.players[1].loose.len(), 1, "rainbow wild can't be paid, and is left unattached");
 }
 
 #[test]
@@ -643,4 +644,82 @@ fn determinize_keeps_what_the_player_can_see() {
         assert_eq!(d.players[p].bank, g.players[p].bank);
     }
     assert_eq!(d.observe(0), g.observe(0));
+}
+
+// ---------------------------------------------------------------------------
+// Rainbow wild: no colour of its own
+// ---------------------------------------------------------------------------
+
+const RAINBOW: Kind = Kind::Wild(WildType::Rainbow);
+
+#[test]
+fn rainbow_wild_can_only_join_an_existing_colour() {
+    let mut g = Game::new_test(2);
+    g.give_hand(0, RAINBOW);
+    assert!(
+        !g.legal_actions().iter().any(|a| matches!(a, PlaceProperty { .. })),
+        "nothing on the table: the rainbow can't be played"
+    );
+    g.give_table(0, RED, Color::Red);
+    let places: Vec<_> = g.legal_actions().into_iter().filter(|a| matches!(a, PlaceProperty { .. })).collect();
+    assert_eq!(places, vec![PlaceProperty { kind: RAINBOW, color: Color::Red }]);
+}
+
+#[test]
+fn rainbow_wild_can_only_move_to_an_existing_colour() {
+    let mut g = Game::new_test(2);
+    g.give_table(0, RED, Color::Red);
+    g.give_table(0, RAINBOW, Color::Red);
+    assert!(!g.legal_actions().iter().any(|a| matches!(a, MoveWild { .. })));
+    g.give_table(0, GREEN, Color::Green);
+    let moves: Vec<_> = g.legal_actions().into_iter().filter(|a| matches!(a, MoveWild { .. })).collect();
+    assert_eq!(moves, vec![MoveWild { kind: RAINBOW, from: Color::Red, to: Color::Green }]);
+}
+
+#[test]
+fn rainbow_left_alone_becomes_unattached_and_can_be_reattached() {
+    let mut g = Game::new_test(2);
+    g.give_hand(0, act(ActionType::SlyDeal));
+    g.give_table(1, BROWN, Color::Brown);
+    g.give_table(1, RAINBOW, Color::Brown); // complete Brown set (2/2)...
+    g.give_table(1, GREEN, Color::Green);
+    g.give_table(1, GREEN, Color::Green);
+    g.give_table(1, RAINBOW, Color::Green); // ...and 3/3 Green
+    assert_eq!(g.players[1].complete_sets(), 2);
+
+    // Steal the only real Brown card? Not allowed: Brown is complete. Break it with a payment instead.
+    g.give_hand(0, act(ActionType::DebtCollector));
+    g.give_bank(1, M5);
+    g.give_bank(1, M1);
+    step(&mut g, PlayAction(ActionType::DebtCollector));
+    step(&mut g, TargetPlayer(1));
+    step(&mut g, PayBank(M1));
+    step(&mut g, PayProperty { kind: BROWN, color: Color::Brown }); // $1M, now $3M owed
+    assert!(g.players[1].pile(Color::Brown).is_empty(), "the rainbow can't stay as Brown on its own");
+    assert_eq!(g.players[1].loose.len(), 1);
+    assert_eq!(g.players[1].complete_sets(), 1);
+    step(&mut g, PayBank(M5));
+
+    // On P1's turn the loose rainbow can be re-attached to a colour P1 has, using a play.
+    step(&mut g, EndTurn);
+    assert_eq!(g.active, 1);
+    let attach: Vec<_> = g.legal_actions().into_iter().filter(|a| matches!(a, AttachRainbow(_))).collect();
+    assert_eq!(attach, vec![AttachRainbow(Color::Green)]);
+    let plays = g.plays_left;
+    step(&mut g, AttachRainbow(Color::Green));
+    assert_eq!(g.plays_left, plays - 1);
+    assert!(g.players[1].loose.is_empty());
+    assert_eq!(g.players[1].pile(Color::Green).len(), 4);
+}
+
+#[test]
+fn stealing_a_rainbow_with_no_matching_colour_leaves_it_unattached() {
+    let mut g = Game::new_test(2);
+    g.give_hand(0, act(ActionType::SlyDeal));
+    g.give_table(1, RED, Color::Red);
+    g.give_table(1, RAINBOW, Color::Red);
+    step(&mut g, PlayAction(ActionType::SlyDeal));
+    step(&mut g, TargetProperty { rel: 1, kind: RAINBOW, color: Color::Red });
+    assert_eq!(g.players[0].loose.len(), 1, "P0 has no Red to attach it to");
+    assert_eq!(g.players[1].pile(Color::Red).len(), 1);
 }

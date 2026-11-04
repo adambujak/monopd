@@ -34,7 +34,8 @@ pub const PER_PLAYER_SIZE: usize = 1 // present
     + NUM_KINDS                      // bank composition
     + NUM_PROPERTY_KINDS * NUM_COLORS // table: count of each (kind, colour)
     + 4 * NUM_COLORS                 // per colour: fill ratio, complete, house, hotel
-    + 1; // complete sets
+    + 1                              // complete sets
+    + 1; // unattached rainbow wilds
 
 pub const OBS_SIZE: usize = GLOBAL_SIZE + NUM_KINDS + MAX_PLAYERS * PER_PLAYER_SIZE;
 
@@ -189,6 +190,7 @@ impl Game {
                 w.push(pile.hotel.is_some() as u8 as f32);
             }
             w.push(p.complete_sets() as f32 / 3.0);
+            w.push(p.loose.len() as f32);
         }
 
         debug_assert_eq!(w.v.len(), OBS_SIZE);
