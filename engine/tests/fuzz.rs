@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 fn variant(a: &Action) -> String {
     let s = format!("{a:?}");
-    s.split(|c: char| c == '(' || c == ' ' || c == '{').next().unwrap().to_string()
+    s.split(['(', ' ', '{']).next().unwrap().to_string()
 }
 
 /// Re-dealing everything the deciding player can't see must not change what
@@ -62,12 +62,11 @@ fn random_play_covers_every_rule() {
                     Phase::Discard => hit("phase:Discard".into()),
                     _ => {}
                 }
-                if let Some(r) = &g.pending {
-                    if let Effect::DealBreaker(c) = r.effect {
-                        if g.players[r.victim()].pile(c).house.is_some() {
-                            hit("event:DealBreaker with house".into());
-                        }
-                    }
+                if let Some(r) = &g.pending
+                    && let Effect::DealBreaker(c) = r.effect
+                    && g.players[r.victim()].pile(c).house.is_some()
+                {
+                    hit("event:DealBreaker with house".into());
                 }
                 let deck_before = g.deck.len();
                 let a = bot.choose(&g);

@@ -206,3 +206,39 @@ impl fmt::Display for Action {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_index_round_trips() {
+        for i in 0..NUM_ACTIONS {
+            let a = Action::from_index(i).unwrap();
+            assert_eq!(a.index(), i, "{a:?}");
+        }
+        assert_eq!(Action::from_index(NUM_ACTIONS), None);
+    }
+
+    #[test]
+    fn the_space_is_laid_out_without_gaps() {
+        assert_eq!(NUM_ACTIONS, 2290);
+        assert_eq!(Action::EndTurn.index(), 0);
+        assert_eq!(Action::Discard(Kind::Money(5)).index(), NUM_ACTIONS - 1);
+    }
+
+    #[test]
+    fn players_are_relative_so_seats_share_indices() {
+        // "Target the next player" is the same index from every seat.
+        let a = Action::TargetPlayer(1);
+        assert_eq!(Action::from_index(a.index()), Some(a));
+        assert_ne!(Action::TargetPlayer(1).index(), Action::TargetPlayer(2).index());
+    }
+
+    #[test]
+    fn display_reads_naturally() {
+        assert_eq!(Action::PlayRent { color: Color::Red, wild: false }.to_string(), "Charge Red rent (everyone)");
+        assert_eq!(Action::Bank(Kind::Money(4)).to_string(), "Bank $5M");
+        assert_eq!(Action::TargetPlayer(2).to_string(), "Target player+2");
+    }
+}

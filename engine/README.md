@@ -67,9 +67,21 @@ These follow the official rules unless noted:
 
 | file | contents |
 |---|---|
+| file | contents |
+|---|---|
 | `src/cards.rs` | colours, kinds, the deck, rent ladders, values |
 | `src/action.rs` | `Action` and its flat index encoding |
-| `src/game.rs` | state machine: phases, legal actions, step, determinize |
+| `src/game/mod.rs` | `Game`, phases, setup, `step` |
+| `src/game/player.rs` | `Player` and `Pile`: sets, rent, buildings, payable value |
+| `src/game/legal.rs` | which actions are legal |
+| `src/game/apply.rs` | applying an action; turn flow (draw, end turn, discard) |
+| `src/game/resolve.rs` | rent, steals, payments, Just Say No chains, win check |
+| `src/game/search.rs` | `determinize` for search over hidden cards |
+| `src/game/debug.rs` | test setup helpers, `check_invariants`, text view |
 | `src/obs.rs` | observation vector |
-| `src/bots.rs` | random bot |
-| `tests/rules.rs` | one test per rule, plus fuzzed full games |
+| `src/bots.rs`, `src/rng.rs` | random bot, seedable RNG |
+| `tests/rules/` | one scenario per rule, grouped by topic |
+| `tests/games.rs` | whole random games: invariants, determinism |
+| `tests/fuzz.rs` | hidden-information, coverage and long fuzz checks |
+
+Each `src` module also has unit tests (`cargo test --lib`).

@@ -93,10 +93,11 @@ impl Game {
         // --- global ---
         w.one_hot(MAX_PLAYERS - 1, Some(n - 2));
         w.push(self.deck.len() as f32 / DECK_SIZE as f32);
+        // Discard pile, as the fraction of each kind's copies.
         w.counts(NUM_KINDS, self.discard.iter().map(|&c| kind_of(c).index()), 1.0);
         let start = w.v.len() - NUM_KINDS;
-        for k in 0..NUM_KINDS {
-            w.v[start + k] /= KIND_COUNTS[k] as f32;
+        for (x, &total) in w.v[start..].iter_mut().zip(&KIND_COUNTS) {
+            *x /= total as f32;
         }
         w.push(self.turn as f32 / self.max_turns as f32);
         w.one_hot(PLAYS_PER_TURN as usize + 1, Some(self.plays_left as usize));
@@ -193,5 +194,58 @@ impl Game {
 
         debug_assert_eq!(w.v.len(), OBS_SIZE);
         w.v
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::Game;
+
+    const GLOBAL_AND_HAND: usize = GLOBAL_SIZE + NUM_KINDS;
+
+    fn player_slot(obs: &[f32], slot: usize) -> &[f32] {
+        let start = GLOBAL_AND_HAND + slot * PER_PLAYER_SIZE;
+        &obs[start..start + PER_PLAYER_SIZE]
+    }
+
+    #[test]
+    fn has_the_advertised_size() {
+        for n in 2..=MAX_PLAYERS {
+            assert_eq!(Game::new(n, 1).observe(0).len(), OBS_SIZE);
+        }
+    }
+
+    #[test]
+    fn lists_players_starting_with_the_observer() {
+        let g = Game::new(3, 4); // P0 has 7 cards, others 5
+        let from_p1 = g.observe(1);
+        // Slot 0 is the observer: hand size feature = 5/10.
+        assert_eq!(player_slot(&from_p1, 0)[1], 0.5);
+        // Slot 2 (two seats after P1) is P0 with 7 cards.
+        assert_eq!(player_slot(&from_p1, 2)[1], 0.7);
+    }
+
+    #[test]
+    fn missing_seats_are_zero_padded() {
+        let obs = Game::new(2, 1).observe(0);
+        for slot in 2..MAX_PLAYERS {
+            assert!(player_slot(&obs, slot).iter().all(|&x| x == 0.0));
+        }
+        assert_eq!(player_slot(&obs, 1)[0], 1.0, "present flag");
+    }
+
+    #[test]
+    fn includes_only_the_observers_own_hand() {
+        let g = Game::new(3, 9);
+        for seat in 0..3 {
+            let obs = g.observe(seat);
+            let hand = &obs[GLOBAL_SIZE..GLOBAL_AND_HAND];
+            let mut expected = [0.0f32; NUM_KINDS];
+            for &c in &g.players[seat].hand {
+                expected[kind_of(c).index()] += 1.0;
+            }
+            assert_eq!(hand, &expected[..]);
+        }
     }
 }

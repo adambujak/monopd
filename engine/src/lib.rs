@@ -21,5 +21,5 @@ pub mod rng;
 
 pub use action::{Action, MAX_PLAYERS, NUM_ACTIONS};
 pub use cards::{ActionType, Color, Kind, RentType, WildType};
-pub use game::{Game, Phase};
+pub use game::{Game, Phase, StepError};
 pub use obs::OBS_SIZE;

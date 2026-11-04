@@ -28,3 +28,36 @@ impl Rng {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn same_seed_same_sequence() {
+        let (mut a, mut b) = (Rng::new(7), Rng::new(7));
+        for _ in 0..100 {
+            assert_eq!(a.next_u64(), b.next_u64());
+        }
+        assert_ne!(Rng::new(7).next_u64(), Rng::new(8).next_u64());
+    }
+
+    #[test]
+    fn below_stays_in_range_and_hits_every_value() {
+        let mut r = Rng::new(1);
+        let mut hits = [0u32; 6];
+        for _ in 0..6000 {
+            hits[r.below(6)] += 1;
+        }
+        assert!(hits.iter().all(|&h| (800..1200).contains(&h)), "roughly uniform: {hits:?}");
+    }
+
+    #[test]
+    fn shuffle_is_a_permutation() {
+        let mut v: Vec<u32> = (0..50).collect();
+        Rng::new(3).shuffle(&mut v);
+        assert_ne!(v, (0..50).collect::<Vec<_>>());
+        v.sort();
+        assert_eq!(v, (0..50).collect::<Vec<_>>());
+    }
+}

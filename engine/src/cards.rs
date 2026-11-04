@@ -484,3 +484,87 @@ pub const KIND_COUNTS: [u8; NUM_KINDS] = kind_counts();
 pub fn kind_of(card: CardId) -> Kind {
     DECK[card as usize]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn count(f: impl Fn(&Kind) -> bool) -> usize {
+        DECK.iter().filter(|k| f(k)).count()
+    }
+
+    #[test]
+    fn deck_has_the_official_106_cards() {
+        assert_eq!(DECK.len(), 106);
+        assert_eq!(count(|k| matches!(k, Kind::Property(_))), 28);
+        assert_eq!(count(|k| matches!(k, Kind::Wild(_))), 11);
+        assert_eq!(count(|k| matches!(k, Kind::Action(_))), 34);
+        assert_eq!(count(|k| matches!(k, Kind::Rent(_))), 13);
+        assert_eq!(count(|k| matches!(k, Kind::Money(_))), 20);
+        let money: u32 = DECK.iter().filter(|k| matches!(k, Kind::Money(_))).map(|k| k.value() as u32).sum();
+        assert_eq!(money, 57);
+        assert_eq!(KIND_COUNTS.iter().map(|&n| n as usize).sum::<usize>(), DECK_SIZE);
+    }
+
+    #[test]
+    fn card_counts_and_values_match_the_real_deck() {
+        let n = |k: Kind| KIND_COUNTS[k.index()];
+        assert_eq!(n(Kind::Action(ActionType::ForcedDeal)), 3);
+        assert_eq!(n(Kind::Action(ActionType::Hotel)), 2);
+        assert_eq!(n(Kind::Action(ActionType::PassGo)), 10);
+        assert_eq!(n(Kind::Rent(RentType::Wild)), 3);
+        assert_eq!(n(Kind::Wild(WildType::Rainbow)), 2);
+        assert_eq!(Kind::Wild(WildType::UtilityRailroad).value(), 2);
+        assert_eq!(Kind::Wild(WildType::Rainbow).value(), 0);
+        assert_eq!(Kind::Action(ActionType::DealBreaker).value(), 5);
+        assert_eq!(Kind::Rent(RentType::Wild).value(), 3);
+        // One plain property card per slot in a set.
+        for c in COLORS {
+            assert_eq!(n(Kind::Property(c)) as usize, c.set_size());
+        }
+    }
+
+    #[test]
+    fn kind_index_is_dense_and_round_trips() {
+        for (i, &k) in ALL_KINDS.iter().enumerate() {
+            assert_eq!(k.index(), i);
+            assert_eq!(Kind::from_index(i), k);
+        }
+        // Property kinds come first, so they can index property slots.
+        assert!(ALL_KINDS[..NUM_PROPERTY_KINDS].iter().all(|k| k.is_property()));
+        assert!(ALL_KINDS[NUM_PROPERTY_KINDS..].iter().all(|k| !k.is_property()));
+    }
+
+    #[test]
+    fn rent_ladder_caps_at_a_full_set() {
+        assert_eq!(Color::Brown.rent(0), 0);
+        assert_eq!(Color::Brown.rent(1), 1);
+        assert_eq!(Color::Brown.rent(2), 2);
+        assert_eq!(Color::Brown.rent(5), 2);
+        assert_eq!(Color::DarkBlue.rent(2), 8);
+        assert_eq!(Color::Railroad.rent(4), 4);
+        assert_eq!(Color::Green.rent(3), 7);
+    }
+
+    #[test]
+    fn every_colour_has_exactly_one_two_colour_rent_card() {
+        for c in COLORS {
+            let covering: Vec<_> = RENT_TYPES[..5].iter().filter(|r| r.colors() & c.bit() != 0).collect();
+            assert_eq!(covering, vec![&RentType::for_color(c)], "{c}");
+        }
+    }
+
+    #[test]
+    fn wilds_cover_two_colours_except_the_rainbow() {
+        for w in WILD_TYPES {
+            let n = iter_colors(w.colors()).count();
+            assert_eq!(n, if w == WildType::Rainbow { NUM_COLORS } else { 2 }, "{w:?}");
+        }
+    }
+
+    #[test]
+    fn buildings_are_not_allowed_on_railroads_or_utilities() {
+        let no_buildings: Vec<_> = COLORS.into_iter().filter(|c| !c.allows_buildings()).collect();
+        assert_eq!(no_buildings, vec![Color::Railroad, Color::Utility]);
+    }
+}
