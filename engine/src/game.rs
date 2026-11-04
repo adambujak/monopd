@@ -55,9 +55,6 @@ pub struct Player {
     pub hand: Vec<CardId>,
     pub bank: Vec<CardId>,
     pub table: [Pile; NUM_COLORS],
-    /// Rainbow wilds that lost their set. They have no colour and count for
-    /// nothing until re-attached to a colour the player already has.
-    pub loose: Vec<CardId>,
 }
 
 impl Player {
@@ -65,7 +62,13 @@ impl Player {
         &self.table[color.idx()]
     }
     pub fn is_complete(&self, color: Color) -> bool {
-        self.pile(color).len() >= color.set_size()
+        pile_complete(self.pile(color), color)
+    }
+    /// Does this colour hold at least one card that really is that colour?
+    /// A rainbow wild has no colour on its own, so a pile of only rainbows
+    /// can't charge rent or count as a set.
+    pub fn has_real(&self, color: Color) -> bool {
+        pile_has_real(self.pile(color))
     }
     pub fn complete_sets(&self) -> usize {
         COLORS.iter().filter(|&&c| self.is_complete(c)).count()
@@ -80,6 +83,9 @@ impl Player {
     /// Rent this player would charge for `color`.
     pub fn rent(&self, color: Color) -> u8 {
         let pile = self.pile(color);
+        if !pile_has_real(pile) {
+            return 0;
+        }
         let mut r = color.rent(pile.len());
         if self.is_complete(color) {
             if pile.house.is_some() {
@@ -117,7 +123,15 @@ impl Player {
 }
 
 fn is_stealable(pile: &Pile, color: Color) -> bool {
-    !pile.is_empty() && pile.len() < color.set_size()
+    !pile.is_empty() && !pile_complete(pile, color)
+}
+
+fn pile_has_real(pile: &Pile) -> bool {
+    pile.cards.iter().any(|&c| kind_of(c) != RAINBOW)
+}
+
+fn pile_complete(pile: &Pile, color: Color) -> bool {
+    pile.len() >= color.set_size() && pile_has_real(pile)
 }
 
 /// Which target the active player is picking.
@@ -364,10 +378,6 @@ impl Game {
                     Kind::Money(_) => out.push(Action::Bank(k)),
                     Kind::Property(_) | Kind::Wild(_) => {
                         for color in iter_colors(k.colors()) {
-                            // A rainbow wild can't start a set: it needs a colour to join.
-                            if k == RAINBOW && p.pile(color).is_empty() {
-                                continue;
-                            }
                             out.push(Action::PlaceProperty { kind: k, color });
                         }
                     }
@@ -380,7 +390,7 @@ impl Game {
                     Kind::Rent(r) => {
                         out.push(Action::Bank(k));
                         for color in iter_colors(r.colors()) {
-                            if !p.pile(color).is_empty() {
+                            if p.has_real(color) {
                                 out.push(Action::PlayRent { color, wild: r == RentType::Wild });
                             }
                         }
@@ -395,17 +405,10 @@ impl Game {
                     let k = kind_of(c);
                     if k.is_wild() && mark(&mut seen, k) {
                         for to in iter_colors(k.colors()) {
-                            if to != from && (k != RAINBOW || !p.pile(to).is_empty()) {
+                            if to != from {
                                 out.push(Action::MoveWild { kind: k, from, to });
                             }
                         }
-                    }
-                }
-            }
-            if !p.loose.is_empty() {
-                for to in COLORS {
-                    if !p.pile(to).is_empty() {
-                        out.push(Action::AttachRainbow(to));
                     }
                 }
             }
@@ -559,14 +562,8 @@ impl Game {
                 let pile = &mut self.players[a].table[from.idx()];
                 let i = pile.position(kind).expect("wild not on table");
                 let c = pile.cards.remove(i);
-                self.settle(a, from);
+                self.fix_buildings(a, from);
                 self.players[a].table[to.idx()].cards.push(c);
-                self.plays_left -= 1;
-                self.check_win();
-            }
-            Action::AttachRainbow(color) => {
-                let c = self.players[a].loose.pop().expect("no unattached rainbow");
-                self.players[a].table[color.idx()].cards.push(c);
                 self.plays_left -= 1;
                 self.check_win();
             }
@@ -801,22 +798,8 @@ impl Game {
         let pile = &mut self.players[from].table[color.idx()];
         let i = pile.cards.iter().position(|&c| c == card).expect("property moved away");
         pile.cards.remove(i);
-        self.settle(from, color);
+        self.fix_buildings(from, color);
         self.players[to].table[color.idx()].cards.push(card);
-        self.settle(to, color);
-    }
-
-    /// Restore pile invariants after cards leave or arrive: a pile left with
-    /// only rainbow wilds loses them to the unattached area, and buildings on
-    /// a set that is no longer complete go to the bank.
-    fn settle(&mut self, p: usize, color: Color) {
-        let player = &mut self.players[p];
-        let pile = &mut player.table[color.idx()];
-        if !pile.cards.is_empty() && pile.cards.iter().all(|&c| kind_of(c) == RAINBOW) {
-            let cards = std::mem::take(&mut pile.cards);
-            player.loose.extend(cards);
-        }
-        self.fix_buildings(p, color);
     }
 
     /// Buildings on a set that is no longer complete go to the owner's bank.
@@ -902,7 +885,6 @@ impl Game {
             pile.cards = keep;
             self.players[receiver].bank.extend(buildings);
             self.players[receiver].table[color.idx()].cards.extend(give);
-            self.settle(payer, color);
         }
         self.check_win();
     }
@@ -1049,16 +1031,8 @@ impl Game {
         for p in &self.players {
             p.hand.iter().for_each(|&c| see(c));
             p.bank.iter().for_each(|&c| see(c));
-            for &c in &p.loose {
-                see(c);
-                assert_eq!(kind_of(c), RAINBOW, "only rainbow wilds can be unattached");
-            }
             for (i, pile) in p.table.iter().enumerate() {
                 let color = COLORS[i];
-                assert!(
-                    pile.is_empty() || pile.cards.iter().any(|&c| kind_of(c) != RAINBOW),
-                    "{color} pile is only rainbow wilds"
-                );
                 for &c in &pile.cards {
                     see(c);
                     assert!(kind_of(c).colors() & color.bit() != 0, "card {c} misplaced in {color}");
@@ -1107,9 +1081,6 @@ impl Game {
                 p.bank_value(),
                 p.complete_sets()
             );
-            if !p.loose.is_empty() {
-                let _ = writeln!(s, "    {} unattached Rainbow wild(s)", p.loose.len());
-            }
             for color in COLORS {
                 let pile = p.pile(color);
                 if pile.is_empty() && pile.house.is_none() {

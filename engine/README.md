@@ -56,6 +56,7 @@ These follow the official rules unless noted:
 - Just Say No: can be chained (a JSN against a JSN). Playing one in response **doesn't use a play** (simplification).
 - Double The Rent is offered right after you play rent. Each double uses a play, and stacking two gives ×4.
 - Rent needs at least one property of that colour.
+- A rainbow (multi-colour) wild can be laid down any time as any colour, but has no colour of its own: on its own it can't collect rent. A pile of only rainbows doesn't count as a complete set (the rules don't cover this case; this follows from "no colour on its own"), so it isn't protected from Sly Deal or Forced Deal either.
 - **Each colour is one pile (simplification).** A pile with ≥ set-size cards counts as one complete set, and the whole pile is safe from Sly Deal and Forced Deal. Deal Breaker takes the whole pile and its buildings.
 - Buildings need a complete set that isn't a railroad or utility, and a hotel needs a house. If a set stops being complete, its buildings go to the owner's bank. Buildings you receive as payment go to your bank. A hotel must be paid before the house under it.
 - Moving a wild already on your table to another colour uses one of your 3 plays (house rule; officially it is free).

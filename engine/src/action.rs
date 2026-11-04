@@ -29,8 +29,6 @@ pub enum Action {
     PlaceProperty { kind: Kind, color: Color },
     /// Re-assign a wild already on your table. Uses one of your 3 plays.
     MoveWild { kind: Kind, from: Color, to: Color },
-    /// Attach an unattached rainbow wild to a colour you already have. Uses a play.
-    AttachRainbow(Color),
     /// Play an action card. Targets, if any, are picked next.
     PlayAction(ActionType),
     /// Charge rent on `color`. `wild` = use the wild rent card (one target)
@@ -78,11 +76,8 @@ const O_PAYPROP: usize = O_PAYBANK + NUM_KINDS;
 const O_PAYBLD: usize = O_PAYPROP + PK * NC;
 const O_DISCARD: usize = O_PAYBLD + 2 * NC;
 
-// Added later; kept at the end so earlier indices stay stable.
-const O_ATTACH: usize = O_DISCARD + NUM_KINDS;
-
 /// Size of the flat action space.
-pub const NUM_ACTIONS: usize = O_ATTACH + NC;
+pub const NUM_ACTIONS: usize = O_DISCARD + NUM_KINDS;
 
 #[inline]
 fn slot(kind: Kind, color: Color) -> usize {
@@ -121,7 +116,6 @@ impl Action {
             Action::PayProperty { kind, color } => O_PAYPROP + slot(kind, color),
             Action::PayBuilding { color, hotel } => O_PAYBLD + (hotel as usize) * NC + color.idx(),
             Action::Discard(k) => O_DISCARD + k.index(),
-            Action::AttachRainbow(c) => O_ATTACH + c.idx(),
         }
     }
 
@@ -173,8 +167,7 @@ impl Action {
                 let j = i - O_PAYBLD;
                 Action::PayBuilding { color: Color::from_idx(j % NC), hotel: j >= NC }
             }
-            _ if i < O_ATTACH => Action::Discard(Kind::from_index(i - O_DISCARD)),
-            _ if i < NUM_ACTIONS => Action::AttachRainbow(Color::from_idx(i - O_ATTACH)),
+            _ if i < NUM_ACTIONS => Action::Discard(Kind::from_index(i - O_DISCARD)),
             _ => return None,
         })
     }
@@ -210,7 +203,6 @@ impl fmt::Display for Action {
                 write!(f, "Pay with {} on {color}", if hotel { "hotel" } else { "house" })
             }
             Action::Discard(k) => write!(f, "Discard {k}"),
-            Action::AttachRainbow(c) => write!(f, "Attach unattached Rainbow wild to {c}"),
         }
     }
 }

@@ -226,14 +226,8 @@ function playerHTML(i, big) {
   if (actionMap.has(pkey)) classes.push('clickable');
   const isHuman = human() === i;
   const tag = isHuman ? 'You' : 'Random bot';
-  // Rainbow wilds that lost their set: no colour until re-attached.
-  const loose = p.loose.length
-    ? `<div class="loose" title="Unattached: counts for nothing until attached to a colour">
-        <div class="set-head"><span class="count">Unattached</span></div>
-        <div class="stack">${p.loose.map((cd) => cardHTML(cd, 'sm', `loose:${i}`)).join('')}</div></div>`
-    : '';
-  const table = p.table.length || p.loose.length
-    ? sortedSets(p.table).map((s) => setHTML(i, s)).join('') + loose
+  const table = p.table.length
+    ? sortedSets(p.table).map((s) => setHTML(i, s)).join('')
     : '<div class="no-props">No properties yet</div>';
   const stars = [0, 1, 2].map((j) => `<span class="star ${j < p.sets ? 'on' : ''}">★</span>`).join('');
   const handCount = `<span class="handcount" title="Cards in hand"><span class="mini-back"></span><b>${p.handCount}</b></span>`;
@@ -340,7 +334,6 @@ function keyFor(a) {
     case 'targetSet': case 'payBuilding': return `set:${a.seat}:${a.color}`;
     case 'payBank': return `bank:${a.seat}:${a.kind}`;
     case 'targetPlayer': return `player:${a.seat}`;
-    case 'attach': return `loose:${a.seat}`;
     // Responses can also be made by clicking the card in your hand.
     case 'double': return `hand:${KIND_DOUBLE}`;
     case 'jsn': return `hand:${KIND_JSN}`;

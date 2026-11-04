@@ -311,10 +311,9 @@ fn state_json(app: &App, seat: i32) -> String {
         let show_hand = seat < 0 || seat as usize == i;
         let _ = write!(
             s,
-            "{{\"handCount\":{},\"hand\":{},\"loose\":{},\"bank\":{},\"bankValue\":{},\"sets\":{},\"table\":[",
+            "{{\"handCount\":{},\"hand\":{},\"bank\":{},\"bankValue\":{},\"sets\":{},\"table\":[",
             p.hand.len(),
             if show_hand { cards(&p.hand) } else { "null".to_string() },
-            cards(&p.loose),
             cards(&p.bank),
             p.bank_value(),
             p.complete_sets()
@@ -381,9 +380,6 @@ fn action_json(s: &mut String, g: &Game, who: usize, a: Action) {
         }
         Action::MoveWild { kind: k, from, to: t } => {
             (verb, kind, color, to, seat) = ("move", Some(k.index()), Some(from.idx()), Some(t.idx()), Some(who))
-        }
-        Action::AttachRainbow(c) => {
-            (verb, kind, color, seat) = ("attach", Some(Kind::Wild(WildType::Rainbow).index()), Some(c.idx()), Some(who))
         }
         Action::PlayAction(t) => (verb, kind) = ("play", Some(Kind::Action(t).index())),
         Action::PlayRent { color: c, wild } => {
