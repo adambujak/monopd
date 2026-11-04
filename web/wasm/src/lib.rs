@@ -143,8 +143,14 @@ fn apply_logged(app: &mut App, a: Action) {
     let who = g.current_player().unwrap();
     let text = describe_action(g, who, a);
     let before: Vec<u32> = g.players.iter().map(|p| p.payable_value()).collect();
+    let (turn_before, active_before) = (g.turn, g.active);
     app.game.apply_unchecked(a);
     app.log.push((who as i32, text));
+    if app.game.turn != turn_before && !matches!(a, Action::EndTurn | Action::Discard(_)) {
+        app.log.push((active_before as i32, "is out of plays: turn ends".to_string()));
+    } else if app.game.phase == Phase::Discard && !matches!(a, Action::EndTurn | Action::Discard(_)) {
+        app.log.push((active_before as i32, "is out of plays and must discard down to 7".to_string()));
+    }
 
     // Summarise value that changed hands (payments and steals).
     let after: Vec<u32> = app.game.players.iter().map(|p| p.payable_value()).collect();

@@ -646,6 +646,11 @@ impl Game {
                 }
             }
         }
+        // With no plays left the only legal move would be EndTurn, so take it.
+        // This also covers the moment a rent/steal finishes resolving.
+        if self.phase == Phase::Main && self.plays_left == 0 {
+            self.end_turn();
+        }
     }
 
     fn play_action(&mut self, t: ActionType) {

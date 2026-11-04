@@ -50,7 +50,7 @@ When two situations call for the same move, they produce the same index, so the 
 These follow the official rules unless noted:
 
 - Deck: 106 cards (28 properties, 11 wilds, 34 actions, 13 rents, 20 money).
-- Draw 2 at the start of a turn, or 5 if your hand is empty. Up to 3 plays per turn. Discard down to 7 at the end of the turn.
+- Draw 2 at the start of a turn, or 5 if your hand is empty. Up to 3 plays per turn. Discard down to 7 at the end of the turn. You can end your turn early, and it ends automatically once all 3 plays are used (after any rent or steal finishes resolving), since nothing else would be legal.
 - Win: 3 complete sets of *different* colours. This is checked after every change, so you can win on someone else's turn, e.g. when a payment completes one of your sets.
 - Payment: the payer chooses what to pay with. No change is given. If the payer has too little, everything of value is handed over automatically. Properties go to the receiver's table with the same colour, and the receiver can move wilds later. Rainbow wilds are worth $0 and can't be used to pay.
 - Just Say No: can be chained (a JSN against a JSN). Playing one in response **doesn't use a play** (simplification).

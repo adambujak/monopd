@@ -93,17 +93,53 @@ fn new_game_deals_and_draws() {
 }
 
 #[test]
-fn three_plays_per_turn() {
+fn three_plays_then_turn_ends_automatically() {
     let mut g = Game::new_test(2);
     for _ in 0..4 {
         g.give_hand(0, M1);
     }
+    for _ in 0..2 {
+        step(&mut g, Bank(M1));
+    }
+    assert_eq!(g.active, 0);
+    step(&mut g, Bank(M1));
+    assert_eq!(g.active, 1, "third play ends the turn");
+    assert_eq!(g.players[0].hand.len(), 1);
+    assert_eq!(g.plays_left, 3);
+}
+
+#[test]
+fn auto_end_still_requires_discarding_to_seven() {
+    let mut g = Game::new_test(2);
+    for _ in 0..6 {
+        g.give_hand(0, M1);
+    }
+    for _ in 0..5 {
+        g.give_hand(0, M2);
+    }
     for _ in 0..3 {
         step(&mut g, Bank(M1));
     }
-    assert_eq!(g.plays_left, 0);
-    assert_eq!(g.legal_actions(), vec![EndTurn]);
-    assert_eq!(g.step(Bank(M1)), Err(monopd_engine::game::IllegalAction(Bank(M1))));
+    assert_eq!(g.phase, Phase::Discard, "8 cards left: must discard before the turn passes");
+    assert_eq!(g.active, 0);
+    step(&mut g, Discard(M2));
+    assert_eq!(g.active, 1);
+}
+
+#[test]
+fn turn_ends_once_a_third_play_rent_is_paid() {
+    let mut g = Game::new_test(2);
+    g.plays_left = 1;
+    g.give_table(0, RED, Color::Red);
+    g.give_hand(0, Kind::Rent(RentType::RedYellow));
+    g.give_bank(1, M1);
+    g.give_bank(1, M5);
+    step(&mut g, PlayRent { color: Color::Red, wild: false });
+    assert_eq!(g.phase, Phase::Pay { owed: 2 });
+    assert_eq!(g.active, 0, "turn waits for the payment");
+    step(&mut g, PayBank(M5));
+    assert_eq!(g.active, 1);
+    assert_eq!(bank_total(&g, 0), 5);
 }
 
 #[test]
@@ -169,8 +205,8 @@ fn wild_can_be_placed_as_either_colour_and_moving_it_uses_a_play() {
     assert_eq!(g.plays_left, 1, "moving a wild uses a play");
     assert_eq!(g.players[0].pile(Color::Yellow).len(), 1);
     step(&mut g, MoveWild { kind: ry, from: Color::Yellow, to: Color::Red });
-    assert_eq!(g.plays_left, 0);
-    assert_eq!(g.legal_actions(), vec![EndTurn], "no plays left, so no more moves");
+    assert_eq!(g.active, 1, "third play (a wild move) ends the turn");
+    assert_eq!(g.players[0].pile(Color::Red).len(), 1);
 }
 
 #[test]
