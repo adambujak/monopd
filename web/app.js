@@ -1,17 +1,41 @@
 // Monopoly Deal viewer: drives the Rust engine (compiled to wasm) and renders it.
 'use strict';
 
-const COLOR_HEX = ['#8b5a2b', '#8fd3f4', '#e0559e', '#f28c28', '#e23b3b', '#f5d33f', '#2fa35b', '#2a4fa8', '#2f2f2f', '#bcd3a6'];
-const COLOR_INK = ['#fff', '#0d2a3a', '#fff', '#fff', '#fff', '#3a3000', '#fff', '#fff', '#fff', '#1f3320'];
+const COLOR_HEX = ['#9a5b34', '#7fd0f0', '#ec4fa0', '#ff8f1f', '#ef3b3b', '#ffd23f', '#1fae5b', '#2457c5', '#353a48', '#a9d18e'];
+const COLOR_INK = ['#fff', '#0b3550', '#fff', '#fff', '#fff', '#4a3a00', '#fff', '#fff', '#fff', '#21401a'];
+const COLOR_LABEL = ['Brown', 'Light Blue', 'Pink', 'Orange', 'Red', 'Yellow', 'Green', 'Dark Blue', 'Railroad', 'Utility'];
+const MONEY_COLOR = { 1: '#fff0a0', 2: '#ffc4b2', 3: '#c3efc6', 4: '#bfe2ff', 5: '#dccbff', 10: '#ffcf5c' };
 const PLAYER_VAR = ['--p0', '--p1', '--p2', '--p3', '--p4'];
-const ACTION_ICON = {
-  'Deal Breaker': ['💥', '#7b2cbf'], 'Just Say No': ['✋', '#c0392b'], 'Sly Deal': ['🦊', '#d35400'],
-  'Forced Deal': ['⇄', '#2980b9'], 'Debt Collector': ['$', '#16a085'], "It's My Birthday": ['🎂', '#e84393'],
-  'Double The Rent': ['×2', '#f39c12'], 'House': ['🏠', '#27ae60'], 'Hotel': ['🏨', '#c0392b'], 'Pass Go': ['GO', '#e74c3c'],
+// [icon, card colour, one-line rules reminder]
+const ACTION_STYLE = {
+  'Deal Breaker': ['💥', '#7b3fe4', 'Steal a complete set'],
+  'Just Say No': ['✋', '#e5383b', 'Cancel an action against you'],
+  'Sly Deal': ['🦊', '#ff7b00', 'Steal one property'],
+  'Forced Deal': ['🔁', '#1f8ef1', 'Swap a property with someone'],
+  'Debt Collector': ['💼', '#0fa37f', 'One player pays you $5M'],
+  "It's My Birthday": ['🎂', '#f0479a', 'Everyone pays you $2M'],
+  'Double The Rent': ['✖️2', '#f4a100', 'Play with a rent card'],
+  'House': ['🏠', '#2bb24c', '+$3M rent on a full set'],
+  'Hotel': ['🏨', '#d6336c', '+$4M rent on a full set'],
+  'Pass Go': ['🎲', '#ff5a5f', 'Draw 2 cards'],
 };
+const PAWN = '<svg class="pawn" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="4.2"/><path d="M8.2 11.5h7.6l2.2 7.5H6z"/><rect x="4" y="18.5" width="16" height="3.5" rx="1.75"/></svg>';
 
 const ui = { mode: 'play', players: 3, seed: 0, reveal: false, paused: false, speed: 55, timer: null };
-let wasm, CAT, S, prevIds = new Set(), actionMap = new Map();
+let wasm, CAT, S, SKIN = {}, prevIds = new Set(), actionMap = new Map();
+
+// Stable name for each card kind, used as the key in cards/skin.json.
+const COLOR_SLUG = ['brown', 'lightblue', 'pink', 'orange', 'red', 'yellow', 'green', 'darkblue', 'railroad', 'utility'];
+function kindSlug(K) {
+  const cs = (K.colors || []).map((c) => COLOR_SLUG[c]).join('-');
+  switch (K.type) {
+    case 'property': return `property-${cs}`;
+    case 'wild': return K.colors.length > 2 ? 'wild-rainbow' : `wild-${cs}`;
+    case 'rent': return K.colors.length > 2 ? 'rent-wild' : `rent-${cs}`;
+    case 'money': return `money-${K.value}`;
+    default: return `action-${K.short.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+  }
+}
 const $ = (id) => document.getElementById(id);
 
 // ---------------------------------------------------------------- wasm glue
@@ -27,6 +51,11 @@ async function init() {
   }
   wasm.catalog();
   CAT = readOut();
+  // Optional local card images: web/cards/skin.json maps card slugs to files.
+  try {
+    const r = await fetch('cards/skin.json', { cache: 'no-store' });
+    if (r.ok) SKIN = await r.json();
+  } catch { /* no skin: use the built-in designs */ }
   bindControls();
   ui.seed = randomSeed();
   $('seed').value = ui.seed;
@@ -79,39 +108,59 @@ const pc = (p) => `var(${PLAYER_VAR[p]})`;
 
 function cardHTML(card, size = '', key = null) {
   const k = card.k, K = CAT.kinds[k];
-  let inner = '';
+  const coin = (v) => `<div class="coin">${v}<small>M</small></div>`;
+  const rentRows = (c) => {
+    const col = CAT.colors[c];
+    return col.rent.map((r, i) => {
+      const dots = Array.from({ length: col.size }, (_, j) => `<i class="${j <= i ? 'on' : ''}"></i>`).join('');
+      return `<div class="row"><span class="dots">${dots}</span><b>$${r}M</b></div>`;
+    }).join('');
+  };
+  const splitBg = (cs) => cs.length > 2
+    ? `linear-gradient(90deg, ${COLOR_HEX.map((h, i) => `${h} ${i * 10}% ${(i + 1) * 10}%`).join(',')})`
+    : `linear-gradient(115deg, ${COLOR_HEX[cs[0]]} 50%, ${COLOR_HEX[cs[1]]} 50%)`;
+  let inner = '', style = '';
   if (K.type === 'property') {
-    const c = K.colors[0], col = CAT.colors[c];
-    inner = `<div class="band" style="background:${COLOR_HEX[c]};color:${COLOR_INK[c]}">${col.name.replace('LightBlue', 'Light Blue').replace('DarkBlue', 'Dark Blue')}</div>
-      <div class="ladder">${col.rent.map((r, i) => `<span>${i + 1}${i + 1 === col.size ? '★' : ''} <b>$${r}M</b></span>`).join('')}</div>`;
+    const c = K.colors[0];
+    style = `--cc:${COLOR_HEX[c]};--ci:${COLOR_INK[c]}`;
+    inner = `<div class="head"><span>${COLOR_LABEL[c]}</span></div>
+      <div class="body"><div class="tag">Rent</div>${rentRows(c)}</div>${coin(K.value)}`;
   } else if (K.type === 'wild') {
-    const bg = K.colors.length > 2
-      ? `linear-gradient(90deg, ${COLOR_HEX.join(',')})`
-      : `linear-gradient(135deg, ${COLOR_HEX[K.colors[0]]} 50%, ${COLOR_HEX[K.colors[1]]} 50%)`;
-    const names = K.colors.length > 2 ? 'Any colour' : K.colors.map((c) => CAT.colors[c].name).join(' / ');
-    inner = `<div class="band" style="background:${bg}">WILD</div><div class="wild-label">${names}</div>`;
+    const any = K.colors.length > 2;
+    inner = `<div class="head wildhead" style="background:${splitBg(K.colors)}"><span class="sticker">WILD</span></div>
+      <div class="body">${any
+        ? '<div class="anyc">Any colour</div><div class="tag">No cash value</div>'
+        : K.colors.map((c) => `<div class="chip" style="background:${COLOR_HEX[c]};color:${COLOR_INK[c]}">${COLOR_LABEL[c]}</div>`).join('')}</div>
+      ${any ? '' : coin(K.value)}`;
   } else if (K.type === 'action') {
-    const [icon, color] = ACTION_ICON[K.short] || ['?', '#555'];
-    inner = `<div class="emblem" style="background:${color}">${icon}</div><div class="aname">${K.short}</div>`;
+    const [icon, color, tip] = ACTION_STYLE[K.short] || ['?', '#555', ''];
+    style = `--ac:${color}`;
+    inner = `<div class="burst"><span>${icon}</span></div><div class="ribbon">${K.short}</div><div class="tip">${tip}</div>${coin(K.value)}`;
   } else if (K.type === 'rent') {
-    const cs = K.colors;
-    const bg = cs.length > 2
-      ? `conic-gradient(${COLOR_HEX.join(',')})`
-      : `linear-gradient(135deg, ${COLOR_HEX[cs[0]]} 50%, ${COLOR_HEX[cs[1]]} 50%)`;
-    inner = `<div class="emblem" style="background:${bg};font-size:.95em;text-shadow:0 1px 2px #000">RENT</div>
-      <div class="aname">${cs.length > 2 ? 'Any colour, one player' : cs.map((c) => CAT.colors[c].name).join(' / ')}</div>`;
+    const cs = K.colors, any = cs.length > 2;
+    style = `--ac:${any ? '#30364f' : '#fff7e6'}`;
+    const disc = any ? `conic-gradient(${COLOR_HEX.join(',')}, ${COLOR_HEX[0]})` : splitBg(cs);
+    inner = `<div class="burst disc" style="background:${disc}"><span>RENT</span></div>
+      <div class="ribbon">${any ? 'Wild Rent' : 'Rent'}</div>
+      <div class="tip">${any ? 'Any colour · one player pays' : `${COLOR_LABEL[cs[0]]} or ${COLOR_LABEL[cs[1]]} · everyone pays`}</div>${coin(K.value)}`;
   } else {
-    inner = `<div class="money-amt">$${K.value}<small>M</small></div>`;
+    style = `--mc:${MONEY_COLOR[K.value]}`;
+    inner = `<div class="note"><span class="corner tl">${K.value}</span><span class="corner br">${K.value}</span>
+      <div class="medal">$${K.value}<small>M</small></div></div>`;
   }
-  const val = K.value > 0 && K.type !== 'money' ? `<div class="val">$${K.value}M</div>` : '';
   const fresh = prevIds.size && card.id !== undefined && !prevIds.has(card.id) ? ' fresh' : '';
   const cls = actionMap.has(key) ? ' clickable' : '';
-  return `<div class="card ${K.type} ${size}${cls}${fresh}" ${key ? `data-key="${key}"` : ''} title="${esc(K.name)}">${inner}${val}</div>`;
+  const img = SKIN[kindSlug(K)];
+  if (img) {
+    return `<div class="card skin ${size}${cls}${fresh}" ${key ? `data-key="${key}"` : ''} title="${esc(K.name)}"><img src="cards/${esc(img)}" alt="${esc(K.name)}"></div>`;
+  }
+  return `<div class="card ${K.type} ${size}${cls}${fresh}" style="${style}" ${key ? `data-key="${key}"` : ''} title="${esc(K.name)}">${inner}</div>`;
 }
 
 function backs(n, size) {
   let s = '';
-  for (let i = 0; i < Math.min(n, 12); i++) s += `<div class="card back ${size}"></div>`;
+  const face = SKIN.back ? `<img src="cards/${esc(SKIN.back)}" alt="">` : '<span>deal</span>';
+  for (let i = 0; i < Math.min(n, 12); i++) s += `<div class="card back ${SKIN.back ? 'skin' : ''} ${size}">${face}</div>`;
   return `<div class="hand backs">${s || '<span class="empty-note">no cards</span>'}</div>`;
 }
 
@@ -152,7 +201,7 @@ function playerHTML(i, big) {
   }
   return `<section class="${classes.join(' ')}" data-key="${pkey}" style="--pc:${pc(i)}">
     <div class="phead">
-      <span class="pname">P${i}</span><span class="ptag">${tag}</span>
+      <span class="token">${PAWN}</span><span class="pname">P${i}</span><span class="ptag">${tag}</span>
       <div class="badges">
         <span class="badge sets">Sets <b>${p.sets}/3</b></span>
         <span class="badge">Bank <b>$${p.bankValue}M</b></span>
@@ -174,7 +223,7 @@ function centerHTML() {
     : '';
   const bar = S.legal.filter((a) => BAR_VERBS[a.verb])
     .map((a) => `<button class="${BAR_VERBS[a.verb][1]}" data-act="${a.i}">${BAR_VERBS[a.verb][0]}</button>`).join('');
-  return `<div class="pile-slot"><div class="card back sm"></div>Deck · ${S.deck}</div>
+  return `<div class="pile-slot"><div class="card back sm"><span>deal</span></div>Deck · ${S.deck}</div>
     <div class="pile-slot">${top}Discard · ${S.discard}</div>
     <div class="center-info"><div class="phase-text">${esc(S.phaseText)}</div>${pips}</div>
     <div class="action-bar">${bar}</div>`;
@@ -222,7 +271,7 @@ function render() {
   const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
   log.innerHTML = S.log.map((e) => e.p < 0
     ? `<li class="sys">${esc(e.t)}</li>`
-    : `<li style="border-left-color:${pc(e.p)}"><span class="who" style="color:${pc(e.p)}">P${e.p}</span>${esc(e.t)}</li>`).join('');
+    : `<li style="--lc:${pc(e.p)}"><span class="who">P${e.p}</span>${esc(e.t)}</li>`).join('');
   if (stick) log.scrollTop = log.scrollHeight;
 
   $('legal-list').innerHTML = S.legal.length
