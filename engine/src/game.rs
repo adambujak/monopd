@@ -351,12 +351,19 @@ impl Game {
                 }
             }
             Phase::ChooseTarget(choice) => self.target_actions(choice, out),
+            // These questions are asked whether or not the player holds the
+            // card (asking only holders would reveal their hand); without the
+            // card the only answer is no.
             Phase::OfferDouble { .. } => {
-                out.push(Action::PlayDouble);
+                if self.players[self.active].holds(DOUBLE) {
+                    out.push(Action::PlayDouble);
+                }
                 out.push(Action::DeclineDouble);
             }
-            Phase::Respond { .. } => {
-                out.push(Action::JustSayNo);
+            Phase::Respond { jsn_count } => {
+                if self.players[self.responder(jsn_count)].holds(JSN) {
+                    out.push(Action::JustSayNo);
+                }
                 out.push(Action::Accept);
             }
             Phase::Pay { .. } => self.pay_actions(out),
@@ -644,12 +651,8 @@ impl Game {
                 let responder = self.responder(jsn_count);
                 let c = self.players[responder].take_from_hand(JSN);
                 self.discard.push(c);
-                let count = jsn_count + 1;
-                if self.players[self.responder(count)].holds(JSN) {
-                    self.phase = Phase::Respond { jsn_count: count };
-                } else {
-                    self.finish_chain(count);
-                }
+                // The other side always gets the chance to answer it.
+                self.phase = Phase::Respond { jsn_count: jsn_count + 1 };
             }
             Action::Accept => {
                 let Phase::Respond { jsn_count } = self.phase else { unreachable!() };
@@ -701,7 +704,7 @@ impl Game {
     }
 
     fn offer_double(&mut self, color: Color, target: Option<usize>, multiplier: u8) {
-        if self.plays_left > 0 && self.players[self.active].holds(DOUBLE) {
+        if self.plays_left > 0 {
             self.phase = Phase::OfferDouble { color, target, multiplier };
         } else {
             self.resolve_rent(color, target, multiplier);
@@ -725,25 +728,16 @@ impl Game {
 
     /// Work through victims until someone has to make a decision.
     fn process_victims(&mut self) {
-        loop {
-            if self.is_over() {
-                return;
-            }
-            let r = self.pending.as_ref().expect("no pending resolution");
-            if r.idx >= r.victims.len() {
-                self.pending = None;
-                self.phase = Phase::Main;
-                return;
-            }
-            let victim = r.victim();
-            if self.players[victim].holds(JSN) {
-                self.phase = Phase::Respond { jsn_count: 0 };
-                return;
-            }
-            if self.apply_effect() || self.is_over() {
-                return;
-            }
-            self.pending.as_mut().unwrap().idx += 1;
+        if self.is_over() {
+            return;
+        }
+        let r = self.pending.as_ref().expect("no pending resolution");
+        if r.idx >= r.victims.len() {
+            self.pending = None;
+            self.phase = Phase::Main;
+        } else {
+            // Every victim is asked about Just Say No, holder or not.
+            self.phase = Phase::Respond { jsn_count: 0 };
         }
     }
 
@@ -957,21 +951,8 @@ impl Game {
     pub fn determinize(&self, seat: usize, seed: u64) -> Game {
         let mut g = self.clone();
         let mut rng = Rng::new(seed);
-        // Cards the current phase proves someone holds stay in their hand: a
-        // player being asked to Just Say No has one, and so does a player being
-        // offered a Double The Rent.
-        let mut kept: Vec<Vec<CardId>> = vec![Vec::new(); g.num_players];
-        let must_hold = match g.phase {
-            Phase::Respond { jsn_count } => Some((g.responder(jsn_count), JSN)),
-            Phase::OfferDouble { .. } => Some((g.active, DOUBLE)),
-            _ => None,
-        };
-        if let Some((p, kind)) = must_hold {
-            if p != seat {
-                let c = g.players[p].take_from_hand(kind);
-                kept[p].push(c);
-            }
-        }
+        // Nothing about the phase reveals a hand: Just Say No and Double The
+        // Rent questions are asked whether or not the player holds the card.
         let mut pool = std::mem::take(&mut g.deck);
         let mut sizes = vec![0; g.num_players];
         for p in 0..g.num_players {
@@ -985,7 +966,6 @@ impl Game {
             if p != seat {
                 let at = pool.len() - sizes[p];
                 g.players[p].hand = pool.split_off(at);
-                g.players[p].hand.append(&mut kept[p]);
             }
         }
         g.deck = pool;
@@ -1094,13 +1074,13 @@ impl Game {
             }
             Phase::ChooseTarget(_) => assert!(self.pending.is_none()),
             Phase::OfferDouble { multiplier, .. } => {
-                assert!(self.plays_left > 0 && self.players[self.active].holds(DOUBLE));
+                assert!(self.plays_left > 0, "Double offered with no plays left");
                 assert!(matches!(multiplier, 1 | 2), "more doubles than plays allow");
             }
             Phase::Respond { jsn_count } => {
                 let r = self.pending.as_ref().expect("Respond without a pending resolution");
                 assert!(r.idx < r.victims.len());
-                assert!(self.players[self.responder(jsn_count)].holds(JSN), "responder has no Just Say No");
+                let _ = jsn_count;
             }
             Phase::Pay { owed } => {
                 let r = self.pending.as_ref().expect("Pay without a pending resolution");

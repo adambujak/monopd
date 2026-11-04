@@ -85,11 +85,19 @@ function newGame() {
 function refresh() {
   wasm.state(viewSeat());
   S = readOut();
-  // In Play mode a bot is only asked about Just Say No / Double The Rent when
-  // it holds one, so showing it "deciding" would reveal its hand. Let it
-  // answer straight away instead.
-  while (ui.mode === 'play' && S.current !== null && S.current !== human() && (S.phase === 'respond' || S.phase === 'double')) {
-    wasm.bot_step();
+  // Everyone targeted is asked about Just Say No (and the renter about Double
+  // The Rent), card or not. Bots answer these at once, and when "no" is your
+  // only possible answer the viewer gives it for you.
+  for (;;) {
+    if (S.current === null) break;
+    const quick = S.phase === 'respond' || S.phase === 'double';
+    if (quick && S.current !== human()) {
+      wasm.bot_step();
+    } else if (quick && S.legal.length === 1) {
+      wasm.step(S.legal[0].i);
+    } else {
+      break;
+    }
     wasm.state(viewSeat());
     S = readOut();
   }

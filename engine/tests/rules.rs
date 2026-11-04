@@ -23,6 +23,22 @@ fn act(t: ActionType) -> Kind {
 fn step(g: &mut Game, a: Action) {
     g.step(a).unwrap_or_else(|e| panic!("{e}; legal: {:?}", g.legal_actions()));
     g.check_invariants();
+    skip_forced_answers(g);
+}
+
+/// Everyone targeted is asked about Just Say No (and the renter about Double
+/// The Rent) whether or not they hold one. When "no" is the only answer, take
+/// it, so tests read as the real decisions.
+fn skip_forced_answers(g: &mut Game) {
+    loop {
+        let legal = g.legal_actions();
+        if legal == vec![Accept] || legal == vec![DeclineDouble] {
+            g.step(legal[0]).unwrap();
+            g.check_invariants();
+        } else {
+            return;
+        }
+    }
 }
 
 fn bank_total(g: &Game, p: usize) -> u32 {
@@ -719,4 +735,51 @@ fn forced_deal_completing_both_players_sets_goes_to_the_active_player() {
     step(&mut g, TargetProperty { rel: 0, kind: Kind::Property(Color::Utility), color: Color::Utility });
     assert_eq!((g.players[0].complete_sets(), g.players[1].complete_sets()), (3, 3));
     assert_eq!(g.winner, Some(1), "the player who made the move wins the tie");
+}
+
+// ---------------------------------------------------------------------------
+// No hidden-hand leaks through who gets asked what
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_victim_is_asked_about_just_say_no_even_without_one() {
+    let mut g = Game::new_test(3);
+    g.give_hand(0, act(ActionType::Birthday));
+    g.give_hand(2, JSN);
+    g.step(PlayAction(ActionType::Birthday)).unwrap();
+    // P1 has no JSN but is asked anyway; "accept" is the only answer.
+    assert_eq!(g.phase, Phase::Respond { jsn_count: 0 });
+    assert_eq!(g.current_player(), Some(1));
+    assert_eq!(g.legal_actions(), vec![Accept]);
+    g.step(Accept).unwrap();
+    // P2 holds one and gets the same question, with a real choice.
+    assert_eq!(g.current_player(), Some(2));
+    assert_eq!(g.legal_actions(), vec![JustSayNo, Accept]);
+}
+
+#[test]
+fn the_actor_is_always_asked_to_counter_a_just_say_no() {
+    let mut g = Game::new_test(2);
+    g.give_hand(0, act(ActionType::DebtCollector));
+    g.give_hand(1, JSN);
+    g.give_bank(1, M5);
+    g.step(PlayAction(ActionType::DebtCollector)).unwrap();
+    g.step(TargetPlayer(1)).unwrap();
+    g.step(JustSayNo).unwrap();
+    // P0 has no JSN but still gets the chance to answer.
+    assert_eq!(g.phase, Phase::Respond { jsn_count: 1 });
+    assert_eq!(g.current_player(), Some(0));
+    assert_eq!(g.legal_actions(), vec![Accept]);
+    g.step(Accept).unwrap();
+    assert_eq!(bank_total(&g, 1), 5, "debt cancelled");
+}
+
+#[test]
+fn double_the_rent_is_offered_even_without_one() {
+    let mut g = Game::new_test(2);
+    g.give_table(0, RED, Color::Red);
+    g.give_hand(0, Kind::Rent(RentType::RedYellow));
+    g.step(PlayRent { color: Color::Red, wild: false }).unwrap();
+    assert!(matches!(g.phase, Phase::OfferDouble { .. }));
+    assert_eq!(g.legal_actions(), vec![DeclineDouble]);
 }

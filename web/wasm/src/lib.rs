@@ -145,8 +145,8 @@ fn apply_logged(app: &mut App, a: Action) {
     let before: Vec<u32> = g.players.iter().map(|p| p.payable_value()).collect();
     let (turn_before, active_before) = (g.turn, g.active);
     app.game.apply_unchecked(a);
-    // Declining a Just Say No or a Double is only asked of players who hold
-    // one, so logging it would reveal their hand. Plays are logged.
+    // Every targeted player is asked about Just Say No (and every renter about
+    // Double The Rent), so "no" answers are routine noise. Plays are logged.
     if !matches!(a, Action::Accept | Action::DeclineDouble) {
         app.log.push((who as i32, text));
     }
