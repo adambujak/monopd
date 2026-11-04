@@ -1,7 +1,0 @@
-{
-    "include": [
-        "."
-    ],
-    "pythonPath": "./venv/bin/python",
-    "reportMissingImports": true
-}
