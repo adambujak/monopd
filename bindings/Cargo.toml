@@ -1,0 +1,16 @@
+[package]
+name = "monopd_py"
+version = "0.1.0"
+edition = "2021"
+description = "Python bindings for the monopd Monopoly Deal engine"
+
+[lib]
+name = "monopd"
+crate-type = ["cdylib"]
+
+[dependencies]
+monopd_engine = { path = "../engine" }
+pyo3 = { version = "0.25", features = ["abi3-py39"] }
+
+[profile.release]
+lto = true
