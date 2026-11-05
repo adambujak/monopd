@@ -1,0 +1,17 @@
+[project]
+name = "monopd-learn"
+version = "0.1.0"
+description = "Learning toward a Monopoly Deal agent: PyTorch work using the monopd engine"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib",
+    "monopd",
+    "numpy",
+    "torch",
+]
+
+[tool.uv]
+package = false   # this is a workspace for scripts, not an installable package
+
+[tool.uv.sources]
+monopd = { path = "bindings", editable = true }

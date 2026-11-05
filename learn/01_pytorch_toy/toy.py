@@ -6,11 +6,11 @@ numbers and must say "won" or "not won".
 
 Fill in every function marked TODO, in order. Check your work as you go:
 
-    python toy.py check            # runs the checks for every part
-    python toy.py train linear     # experiments, once part 4 passes
-    python toy.py train mlp
-    python toy.py train nolinear
-    python toy.py train tiny
+    uv run python toy.py check            # runs the checks for every part
+    uv run python toy.py train linear     # experiments, once part 4 passes
+    uv run python toy.py train mlp
+    uv run python toy.py train nolinear
+    uv run python toy.py train tiny
 
 See README.md for the walkthrough, hints and questions.
 """
@@ -197,7 +197,7 @@ def check():
         except AssertionError as e:
             print(f"  part {name}: not quite. {e}")
             return
-    print("\nAll parts pass. Now run the experiments: python toy.py train linear | mlp | nolinear | tiny")
+    print("\nAll parts pass. Now run the experiments: uv run python toy.py train linear | mlp | nolinear | tiny")
 
 
 def experiment(name):

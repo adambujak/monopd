@@ -5,9 +5,8 @@ A table is 10 numbers: how many properties a player holds of each colour. They'v
 It's a miniature of the real project's first step, the win predictor. Every piece you write here (tensors, a model class, a training loop, accuracy, a train/test split) you'll reuse on the real game.
 
 ```bash
-source .venv/bin/activate          # from the repo root
 cd learn/01_pytorch_toy
-python toy.py check                # tells you which part to do next
+uv run python toy.py check         # tells you which part to do next
 ```
 
 Work through the parts in order. Run `check` after each one. When you're stuck, look at the hints, then ask me.
@@ -101,10 +100,10 @@ for each epoch:
 Once `check` passes everything, run each experiment and answer the questions before reading on.
 
 ```bash
-python toy.py train linear
-python toy.py train mlp
-python toy.py train nolinear
-python toy.py train tiny
+uv run python toy.py train linear
+uv run python toy.py train mlp
+uv run python toy.py train nolinear
+uv run python toy.py train tiny
 ```
 
 1. **`linear`:** what accuracy does it reach? About half the tables are wins, so 50% is coin-flipping. Why can't a single linear layer get this right? Think about what a weighted sum of counts can and can't express, given that only whole sets count.

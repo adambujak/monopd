@@ -10,3 +10,13 @@ requires-python = ">=3.9"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+# Rebuild the module whenever the bindings or the engine change.
+[tool.uv]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "src/**/*.rs" },
+    { file = "../engine/Cargo.toml" },
+    { file = "../engine/src/**/*.rs" },
+]

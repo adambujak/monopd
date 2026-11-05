@@ -4,14 +4,17 @@ Building a Monopoly Deal agent yourself, one working step at a time. Each step's
 
 ## Setup
 
+The repo is a [uv](https://docs.astral.sh/uv/) project. From the repo root:
+
 ```bash
-python3 -m venv .venv                         # once, from the repo root
-source .venv/bin/activate
-pip install torch numpy matplotlib maturin
-(cd bindings && maturin develop --release)    # builds `import monopd`; re-run after engine changes
+uv sync                         # creates .venv with torch, numpy, matplotlib and monopd
+uv run python some_script.py    # runs inside that environment
+uv add <package>                # adds a dependency (updates pyproject.toml and uv.lock)
 ```
 
-Quick check:
+`monopd` is built from `bindings/`, and the build needs Rust. uv rebuilds it automatically whenever the engine or bindings change, so there's nothing to re-run.
+
+Quick check (`uv run python`):
 
 ```python
 import monopd
