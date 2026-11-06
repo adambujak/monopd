@@ -50,17 +50,23 @@ def complete_mask(X):
     """X: float [n, 10] property counts.
     Returns a bool tensor [n, 10]: True where that colour is a complete set.
     """
-    raise NotImplementedError("TODO part 1")
+    set_sizes = torch.tensor(SET_SIZES, dtype=torch.float32)
+    out = X.greater_equal(set_sizes)
+    return out
 
 
 def count_complete(X):
     """Returns an integer tensor [n]: how many complete sets each player has."""
-    raise NotImplementedError("TODO part 1")
+    mask = complete_mask(X)
+    out = torch.count_nonzero(mask, dim=1)
+    return out
 
 
 def won(X):
     """Returns a float tensor [n]: 1.0 where the player has won, else 0.0."""
-    raise NotImplementedError("TODO part 1")
+    counts = count_complete(X)
+    out = counts.greater_equal(SETS_TO_WIN).to(torch.float32)
+    return out
 
 
 # ===========================================================================
@@ -71,7 +77,13 @@ def split(X, y, test_fraction=0.2, seed=0):
     """Shuffle the rows (keeping X and y lined up), then split.
     Returns (X_train, y_train, X_test, y_test).
     """
-    raise NotImplementedError("TODO part 2")
+    g = torch.Generator().manual_seed(seed)
+    shuffled_indices = torch.randperm(len(X), generator=g)
+    X = X[shuffled_indices]
+    y = y[shuffled_indices]
+
+    n_train = int(len(X) * (1-test_fraction))
+    return X[:n_train], y[:n_train], X[n_train:], y[n_train:]
 
 
 # ===========================================================================
@@ -84,10 +96,10 @@ class LinearModel(nn.Module):
 
     def __init__(self):
         super().__init__()
-        raise NotImplementedError("TODO part 3")
+        self.lin = nn.Linear(10, 1)
 
     def forward(self, x):
-        raise NotImplementedError("TODO part 3")
+        return self.lin(x)
 
 
 class MLP(nn.Module):
@@ -97,10 +109,17 @@ class MLP(nn.Module):
 
     def __init__(self, hidden=64, activation=True):
         super().__init__()
-        raise NotImplementedError("TODO part 3")
+        layers = [
+            nn.Linear(10, hidden),
+            nn.ReLU() if activation else nn.Identity(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU() if activation else nn.Identity(),
+            nn.Linear(hidden, 1),
+        ]
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        raise NotImplementedError("TODO part 3")
+        return self.layers(x)
 
 
 # ===========================================================================
@@ -111,7 +130,10 @@ def accuracy(model, X, y):
     """Fraction of rows where the model's prediction (logit > 0) matches y.
     Returns a Python float. Don't track gradients here.
     """
-    raise NotImplementedError("TODO part 4")
+    with torch.no_grad():
+        out = model(X).squeeze().greater(0.0)
+        matches = out.eq(y)
+        return matches.count_nonzero().item() / len(X)
 
 
 def train(model, X, y, epochs=30, lr=1e-2, batch_size=64):
@@ -129,16 +151,19 @@ def _check_part1():
     X = torch.tensor([[2, 3, 3, 0, 0, 0, 0, 0, 0, 0],    # Brown, LightBlue, Pink complete: won
                       [1, 3, 3, 3, 0, 0, 0, 0, 4, 2],    # 5 complete: won
                       [2, 2, 2, 2, 2, 2, 2, 1, 3, 1],    # 1 complete
-                      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=torch.float32)
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [3, 4, 3, 0, 0, 0, 0, 0, 0, 0]], dtype=torch.float32)  # extra cards still complete a set
     mask = complete_mask(X)
-    assert mask.shape == (4, 10), f"complete_mask shape should be (4, 10), got {tuple(mask.shape)}"
+    assert mask.shape == (5, 10), f"complete_mask shape should be (5, 10), got {tuple(mask.shape)}"
     assert mask.dtype == torch.bool, f"complete_mask should be bool, got {mask.dtype}"
     assert mask[0].tolist() == [True, True, True] + [False] * 7, "complete_mask row 0 is wrong"
+    assert mask[4].tolist() == [True, True, True] + [False] * 7, \
+        "a colour with MORE cards than its set size is still complete (3 Browns is a full Brown set plus one)"
     counts = count_complete(X)
-    assert counts.tolist() == [3, 5, 1, 0], f"count_complete should be [3, 5, 1, 0], got {counts.tolist()}"
+    assert counts.tolist() == [3, 5, 1, 0, 3], f"count_complete should be [3, 5, 1, 0, 3], got {counts.tolist()}"
     w = won(X)
     assert w.dtype == torch.float32, f"won should be float32, got {w.dtype}"
-    assert w.tolist() == [1.0, 1.0, 0.0, 0.0], f"won should be [1, 1, 0, 0], got {w.tolist()}"
+    assert w.tolist() == [1.0, 1.0, 0.0, 0.0, 1.0], f"won should be [1, 1, 0, 0, 1], got {w.tolist()}"
     X, y = make_data(2000, seed=1)
     assert torch.equal(won(X), y), "won() disagrees with make_data on random tables"
 
@@ -152,6 +177,14 @@ def _check_part2():
     assert not torch.equal(X_tr, X[:80]), "rows should be shuffled before splitting"
     together = sorted(map(tuple, torch.cat([X_tr, X_te]).tolist()))
     assert together == sorted(map(tuple, X.tolist())), "every row should end up in exactly one half"
+    assert torch.equal(split(X, y, seed=3)[0], split(X, y, seed=3)[0]), "the same seed should give the same split every time"
+    assert not torch.equal(split(X, y, seed=3)[0], split(X, y, seed=4)[0]), "different seeds should give different splits"
+    torch.manual_seed(123)
+    expected = torch.rand(3)
+    torch.manual_seed(123)
+    split(X, y)
+    assert torch.equal(torch.rand(3), expected), \
+        "split shouldn't use or reset PyTorch's global random generator; give randperm its own generator"
 
 
 def _check_part3():

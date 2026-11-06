@@ -1,6 +1,6 @@
 # monopd
 
-A Monopoly Deal engine and, eventually, a self-play RL agent.
+A Monopoly Deal engine and, eventually, a self-play RL agent. See [PLAN.md](PLAN.md) for the goals, current status and learning plan.
 
 - [`engine/`](engine/): a fast Rust game engine (rules, action encoding, observations, bots). See its [README](engine/README.md).
 - [`web/`](web/): a browser UI to play against bots or watch them play, using the engine compiled to WebAssembly.
