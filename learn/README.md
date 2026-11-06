@@ -25,6 +25,11 @@ print([monopd.action_name(a) for a in g.legal_actions()])
 
 The full Python API, with docs, is in [`bindings/monopd.pyi`](../bindings/monopd.pyi).
 
+## Docs
+
+- [`NOTES.md`](NOTES.md): what we've worked through so far (the model, PyTorch concepts, mistakes worth remembering).
+- [`NEXT_STEPS.md`](NEXT_STEPS.md): how to set up each step after the toy.
+
 ## Steps
 
 1. **PyTorch on a toy problem:** [`01_pytorch_toy/`](01_pytorch_toy/). Tensors, models, the training loop, overfitting.
