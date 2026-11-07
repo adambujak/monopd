@@ -15,6 +15,7 @@ Fill in every function marked TODO, in order. Check your work as you go:
 See README.md for the walkthrough, hints and questions.
 """
 
+from math import ceil
 import random
 import sys
 
@@ -82,8 +83,8 @@ def split(X, y, test_fraction=0.2, seed=0):
     X = X[shuffled_indices]
     y = y[shuffled_indices]
 
-    n_train = int(len(X) * (1-test_fraction))
-    return X[:n_train], y[:n_train], X[n_train:], y[n_train:]
+    n_test = round(len(X) * (test_fraction))
+    return X[n_test:], y[n_test:], X[:n_test], y[:n_test]
 
 
 # ===========================================================================
@@ -131,7 +132,7 @@ def accuracy(model, X, y):
     Returns a Python float. Don't track gradients here.
     """
     with torch.no_grad():
-        out = model(X).squeeze().greater(0.0)
+        out = model(X).squeeze(1).greater(0.0)
         matches = out.eq(y)
         return matches.count_nonzero().item() / len(X)
 
@@ -140,7 +141,27 @@ def train(model, X, y, epochs=30, lr=1e-2, batch_size=64):
     """Train with Adam and binary cross-entropy on shuffled mini-batches.
     Returns a list with the average loss of each epoch.
     """
-    raise NotImplementedError("TODO part 4")
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    losses = []
+    for _ in range(epochs):
+        cur_loss = 0
+        shuffled_indices = torch.randperm(len(X))
+        X = X[shuffled_indices]
+        y = y[shuffled_indices]
+        loss = nn.BCEWithLogitsLoss()
+        for batch_start in range(0, len(X), batch_size):
+            optimizer.zero_grad()
+            batch_end = batch_start + batch_size
+            batch = X[batch_start:batch_end]
+            target = y[batch_start:batch_end]
+            infered = model(batch).squeeze(1)
+            output = loss(infered, target)
+            output.backward()
+            optimizer.step()
+            cur_loss += output.item() * len(batch)
+
+        losses.append(cur_loss/len(X))
+    return losses
 
 
 # ===========================================================================
