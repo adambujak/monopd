@@ -32,7 +32,7 @@ print(game.winner, game.returns())   # winner is None on a draw
 
 **Goal:** predict from a state whether the player to act goes on to win. It's the toy's recipe on real data, and the network later becomes the value head.
 
-**Setup:** create `learn/02_win_predictor/`, and copy over your `MLP`, `train` and `accuracy` as a starting point. `MLP` will need its input size as a parameter (`monopd.OBS_SIZE`, 1,474).
+**Setup:** the skeleton is in [`02_win_predictor/`](02_win_predictor/): `uv run python predictor.py check` there. Start from your toy's `MLP`, `train` and `accuracy`; `MLP` needs its input size as a parameter (`monopd.OBS_SIZE`, 1,474).
 
 **What you'll write:**
 
