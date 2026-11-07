@@ -17,8 +17,9 @@ There are two goals, and the second matters as much as the first:
 | Browser viewer (`web/`) | Done: play against random bots or watch them |
 | Python bindings (`bindings/`) | Done: `import monopd` |
 | Python environment | Done: uv project (`uv sync`, `uv run`) |
-| Learning step 1, PyTorch toy | **In progress:** parts 1–3 and `accuracy` are done. Next is `train`, then the part 5 experiments. |
-| Learning steps 2–7 | Not started |
+| Learning step 1, PyTorch toy | Done: all parts pass; experiments run (linear 80%, mlp 100%, nolinear 79%, tiny 100% train / 69% test) |
+| Learning step 2, win predictor | **In progress** |
+| Learning steps 3–7 | Not started |
 
 ## Learning plan
 
