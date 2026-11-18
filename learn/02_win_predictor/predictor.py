@@ -49,7 +49,45 @@ def collect(n_games, every=8, seed=0):
         "seat":     int64   [N]
         "progress": float32 [N]
     """
-    raise NotImplementedError("TODO part 1")
+    result = {"X": [], "y": [], "game": [], "seat": [], "progress": []}
+    for i in range(n_games):
+        g = monopd.Game(num_players=2, seed=seed+i)
+        player = monopd.RandomBot(seed=seed+i)
+
+        observations = []
+        seats = []
+        moves = []
+
+        decision = 0
+        while not g.is_over():
+            seat = g.current_player()
+
+            if decision % every == 0:
+                observations.append(g.observe(seat))
+                seats.append(seat)
+                moves.append(decision)
+
+            g.step(player.choose(g))
+            decision += 1
+
+        if g.winner is None:
+            continue
+
+        for seat, obs, m in zip(seats, observations, moves):
+            progress = m / decision
+            result["X"].append(torch.tensor(obs))
+            result["y"].append(float(g.winner == seat))
+            result["game"].append(i)
+            result["seat"].append(seat)
+            result["progress"].append(progress)
+
+    return {
+        "X":        torch.stack(result["X"]),
+        "y":        torch.tensor(result["y"], dtype=torch.float32),
+        "game":     torch.tensor(result["game"], dtype=torch.int64),
+        "seat":     torch.tensor(result["seat"], dtype=torch.int64),
+        "progress": torch.tensor(result["progress"], dtype=torch.float32),
+    }
 
 
 # ===========================================================================
@@ -63,7 +101,17 @@ def split_by_game(data, test_fraction=0.2, seed=0):
     with your own seeded generator (as in the toy's split).
     Returns (train, test): two dicts with the same keys as `data`.
     """
-    raise NotImplementedError("TODO part 2")
+    games = data["game"].unique()
+    print(games)
+    gen = torch.Generator()
+    gen.manual_seed(seed)
+
+    mixed = torch.randperm(len(data), generator=gen)
+    data = data[mixed]
+
+    n_test = round(test_fraction * len(data))
+
+    return (data[n_test:], data[:n_test])
 
 
 # ===========================================================================
