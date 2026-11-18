@@ -17,11 +17,21 @@ import sys
 from pathlib import Path
 
 import monopd
+from numpy import linspace
 import torch
-from torch import nn
+from torch import nn, zeros
 
 DATA_PATH = Path(__file__).with_name("data.pt")
 
+
+def tensorify_result(result):
+    return {
+        "X":        torch.stack(result["X"]),
+        "y":        torch.tensor(result["y"], dtype=torch.float32),
+        "game":     torch.tensor(result["game"], dtype=torch.int64),
+        "seat":     torch.tensor(result["seat"], dtype=torch.int64),
+        "progress": torch.tensor(result["progress"], dtype=torch.float32),
+    }
 
 # ===========================================================================
 # Part 1: collect data from random games.
@@ -81,14 +91,7 @@ def collect(n_games, every=8, seed=0):
             result["seat"].append(seat)
             result["progress"].append(progress)
 
-    return {
-        "X":        torch.stack(result["X"]),
-        "y":        torch.tensor(result["y"], dtype=torch.float32),
-        "game":     torch.tensor(result["game"], dtype=torch.int64),
-        "seat":     torch.tensor(result["seat"], dtype=torch.int64),
-        "progress": torch.tensor(result["progress"], dtype=torch.float32),
-    }
-
+    return tensorify_result(result)
 
 # ===========================================================================
 # Part 2: split by whole game.
@@ -102,16 +105,21 @@ def split_by_game(data, test_fraction=0.2, seed=0):
     Returns (train, test): two dicts with the same keys as `data`.
     """
     games = data["game"].unique()
-    print(games)
     gen = torch.Generator()
     gen.manual_seed(seed)
 
-    mixed = torch.randperm(len(data), generator=gen)
-    data = data[mixed]
+    mixed = torch.randperm(len(games), generator=gen)
+    games = games[mixed]
 
-    n_test = round(test_fraction * len(data))
+    n_test = round(test_fraction * len(games))
 
-    return (data[n_test:], data[:n_test])
+    test_games = games[:n_test]
+
+    is_test = torch.isin(data["game"], test_games)        # bool [N]: is this row's game a test game?
+    test = {k: v[is_test] for k, v in data.items()}
+    train = {k: v[~is_test] for k, v in data.items()}
+
+    return train, test
 
 
 # ===========================================================================
@@ -123,22 +131,53 @@ class MLP(nn.Module):
 
     def __init__(self, in_features, hidden=256):
         super().__init__()
-        raise NotImplementedError("TODO part 3")
+        self.model = nn.Sequential(
+            nn.Linear(in_features, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, 1),
+        )
+
 
     def forward(self, x):
-        raise NotImplementedError("TODO part 3")
+        return self.model(x)
 
 
 def accuracy(model, X, y):
     """Fraction of rows where (logit > 0) matches y, as a Python float."""
-    raise NotImplementedError("TODO part 3")
+    with torch.no_grad():
+        result = model(X).squeeze(1).greater(0.0).eq(y)
+        return result.count_nonzero().item()/len(X)
 
 
 def train(model, X, y, epochs=8, lr=1e-3, batch_size=256):
     """Adam + BCE-with-logits on shuffled mini-batches.
     Returns the row-weighted average loss of each epoch (Python floats).
     """
-    raise NotImplementedError("TODO part 3")
+
+    losses = []
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    for _ in range(epochs):
+        cur_loss = 0
+        shuffled_indices = torch.randperm(len(X))
+        X = X[shuffled_indices]
+        y = y[shuffled_indices]
+        loss = nn.BCEWithLogitsLoss()
+        for b_start in range(0, len(X), batch_size):
+            optimizer.zero_grad()
+            b_end = b_start + batch_size
+            batch = X[b_start:b_end]
+            labels = y[b_start:b_end]
+            infered = model(batch).squeeze(1)
+            output = loss(infered, labels)
+            output.backward()
+            optimizer.step()
+            cur_loss += output.item() * len(batch)
+
+        losses.append(cur_loss/len(X))
+
+    return losses
 
 
 # ===========================================================================
@@ -151,7 +190,18 @@ def accuracy_by_stage(model, X, y, progress, n_stages=4):
     Stage s holds the rows with s / n_stages <= progress < (s + 1) / n_stages.
     Returns a list of n_stages Python floats (float('nan') for an empty stage).
     """
-    raise NotImplementedError("TODO part 4")
+    with torch.no_grad():
+        output = model(X)
+        stage = (progress * n_stages).to(int)
+        correctness = output.greater(0.0).squeeze(1).eq(y)
+
+        output = []
+        for s in range(n_stages):
+            is_stage = torch.isin(stage, s)
+            c_s = correctness[is_stage]
+            output.append((c_s.sum()/len(c_s)).item())
+
+        return output
 
 
 # ===========================================================================
