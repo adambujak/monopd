@@ -76,7 +76,7 @@ Random games are noisy, so nowhere near 100% is expected: a lucky draw can flip 
 
 **Goal:** the two-column model makes every decision in a full game.
 
-**Setup:** create `learn/03_policy/`.
+**Setup:** the skeleton is in [`03_policy/`](03_policy/): `uv run python policy.py check` there.
 
 **What you'll write:**
 
@@ -90,7 +90,7 @@ Random games are noisy, so nowhere near 100% is expected: a lucky draw can flip 
 - **Seats:** alternate which seat your model takes, since seat 0 goes first and may have a small edge.
 - **Decisions on other turns:** `current_player()` decides who acts. Your model also pays rent and answers Just Say No on the opponent's turn.
 
-**Done when:** it plays full games without errors and wins about 50% against a random bot, over at least 1,000 games. An untrained model is effectively random, so 50% means your setup is working.
+**Done when:** it plays full games without errors and wins about 50% against a random bot, over at least 1,000 games. That needs small initial embeddings: with PyTorch's default initialisation, an untrained model has strong arbitrary preferences and won anywhere from 35% to 58% in a test run, depending on its seed.
 
 ---
 

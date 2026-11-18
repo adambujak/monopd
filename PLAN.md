@@ -19,7 +19,7 @@ There are two goals, and the second matters as much as the first:
 | Python environment | Done: uv project (`uv sync`, `uv run`) |
 | Learning step 1, PyTorch toy | Done: all parts pass; experiments run (linear 80%, mlp 100%, nolinear 79%, tiny 100% train / 69% test) |
 | Learning step 2, win predictor | Done: 63% test (55% first quarter, 73% last), 90% train. Row split leaks (77%). Best fix: 20k games + dropout, 69% test |
-| Learning step 3, policy network | **Next** |
+| Learning step 3, policy network | **In progress** |
 | Learning steps 4–7 | Not started |
 
 ## Learning plan
@@ -28,7 +28,7 @@ Each step ends with something that works and can be measured. Details are in [`l
 
 1. **PyTorch on a toy problem** ([`learn/01_pytorch_toy/`](learn/01_pytorch_toy/)): tensors, models, the training loop, and overfitting.
 2. **Win predictor:** predict the winner of real games from `observe()`, using states from random games. Split train and test by whole game, because states from one game are nearly identical. This network later becomes the value head.
-3. **Policy network, untrained:** the model below plays full games, at about a 50% win rate against a random bot.
+3. **Policy network, untrained:** the model below plays full games, at about a 50% win rate against a random bot (with small initial embeddings; default initialisation gave 35-58%).
 4. **REINFORCE:** the policy learns against random bots and its win rate climbs. This is the big milestone.
 5. **Actor-critic:** use the value head as a baseline for steadier learning.
 6. **Self-play:** train against a pool of saved past versions, which avoids strategy cycles.
