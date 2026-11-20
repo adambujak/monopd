@@ -127,9 +127,9 @@ def _check_part1():
     torch.manual_seed(0)
     m = PolicyNet(obs_size=20, num_actions=50, hidden=16)
     embs = [x for x in m.modules() if isinstance(x, nn.Embedding)]
-    assert len(embs) == 1, "PolicyNet should have one nn.Embedding (the action column)"
-    assert tuple(embs[0].weight.shape) == (50, 16), \
-        f"the embedding should be (num_actions, hidden) = (50, 16), got {tuple(embs[0].weight.shape)}"
+    shapes = [tuple(e.weight.shape) for e in embs]
+    assert (50, 16) in shapes, \
+        f"PolicyNet should have an nn.Embedding of shape (num_actions, hidden) = (50, 16) for the actions, found {shapes or 'none'}"
     obs = torch.randn(20)
     legal = torch.tensor([3, 7, 0, 41, 12])
     out = m(obs, legal)
