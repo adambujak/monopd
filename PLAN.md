@@ -21,7 +21,7 @@ There are two goals, and the second matters as much as the first:
 | Learning step 2, win predictor | Done: 63% test (55% first quarter, 73% last), 90% train. Row split leaks (77%). Best fix: 20k games + dropout, 69% test |
 | Learning step 3, policy network | Done: plays full games; untrained it wins 35% with default embedding init (arbitrary biases) and 51% with std 0.01 (uniform choices) |
 | Learning step 4, REINFORCE | Done: beats RandomBot 81% after 640 games, about 97% by 6,400 (lr 1e-3, batch 32). lr 3e-4 slower but ends higher; lr 1e-2 and batch 8 collapse below random |
-| Learning step 5, actor-critic | **Next** |
+| Learning step 5, actor-critic | **In progress**: trains against RandomBot plus a frozen step 4 model |
 | Learning steps 6–7 | Not started |
 
 ## Learning plan

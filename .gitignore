@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 *.pt
 learn/04_reinforce/*.png
+learn/05_actor_critic/*.png
+learn/05_actor_critic/*.json

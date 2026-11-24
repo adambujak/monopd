@@ -37,7 +37,7 @@ The full Python API, with docs, is in [`bindings/monopd.pyi`](../bindings/monopd
 2. **Win predictor:** [`02_win_predictor/`](02_win_predictor/): collect `(observe(seat), did that seat win?)` from random games and train a network to predict the winner. It becomes the value head.
 3. **Policy network, untrained:** [`03_policy/`](03_policy/): the two-column model (state → `h`, action index → embedding, score = `h · E`) playing full games.
 4. **REINFORCE:** [`04_reinforce/`](04_reinforce/): make the policy learn against random bots and watch the win rate climb.
-5. **Actor-critic:** use the value head as a baseline.
+5. **Actor-critic:** [`05_actor_critic/`](05_actor_critic/): use the value head as a baseline.
 6. **Self-play** against saved copies of itself.
 7. **PPO.**
 

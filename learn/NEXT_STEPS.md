@@ -125,6 +125,8 @@ Random games are noisy, so nowhere near 100% is expected: a lucky draw can flip 
 
 **Change:** add a value head on `h`, trained to predict the game's outcome. Use `(reward - predicted value)` in the policy loss, with the prediction detached so the policy loss doesn't train the value head.
 
+**Setup:** the skeleton is in [`05_actor_critic/`](05_actor_critic/): `uv run python actor_critic.py check` there. Training mixes RandomBot with a frozen copy of the step 4 model, so there is room left to show a difference.
+
 **Done when:** on the same seeds, it reaches a given win rate in fewer games than REINFORCE, or its curve is visibly steadier.
 
 ---
