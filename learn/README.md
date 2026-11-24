@@ -29,6 +29,7 @@ The full Python API, with docs, is in [`bindings/monopd.pyi`](../bindings/monopd
 
 - [`NOTES.md`](NOTES.md): what we've worked through so far (the model, PyTorch concepts, mistakes worth remembering).
 - [`NEXT_STEPS.md`](NEXT_STEPS.md): how to set up each step after the toy.
+- [`LEARNINGS.md`](LEARNINGS.md): questions asked, mental models that changed, what was learned, and bugs worth remembering.
 
 ## Steps
 
