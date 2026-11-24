@@ -2,7 +2,6 @@
 
 What came up while working through steps 1 to 4: the questions you asked, the mental models that needed correcting, what you learned, and the bugs worth remembering. [`NOTES.md`](NOTES.md) covers the earlier design discussion and PyTorch basics; this picks up from there.
 
-Nothing here gives away the answers to step 4's remaining parts or experiments.
 
 ---
 
@@ -24,6 +23,10 @@ The most useful part of this file. Each one is a "before" that's easy to fall ba
 | Forced moves still nudge the policy toward the only option. | With one legal action the softmax is always exactly 1, so log-prob is 0 and the gradient is exactly zero. Forced moves teach the policy nothing (though the state can still teach a value head). |
 | You need the log-probability of the decision (the whole distribution). | You need the log-probability of the *one move that was played*: a single number per decision. |
 | Multiplying by the reward works because it happens to be +1 / -1. | It falls out of the maths: the objective is expected reward, so its gradient is reward-weighted. Any reward scale works, and only *relative* rewards matter for direction, which leads to baselines (step 5). |
+| A smaller learning rate gives a lower peak. | 3e-4 ended *higher* than 1e-3 (98-99% vs 97%). Smaller steps average out more batch noise; they cost speed, not quality. |
+| Too large a learning rate just gives a lower peak. | 1e-2 made the policy *worse than random* (12%). In RL, bad steps produce worse training data, and big steps lock in near-certain bad habits. |
+| A biased starting point traps the policy. | A mildly biased start (default init) recovered. Trapping needs near-certainty, which noisy big steps create and a mild bias doesn't. |
+| The curve kept improving until about 4,000 games. | It levelled off around 1,300; later differences of 2-3 points sat inside the measurement noise of 400 evaluation games. |
 
 ---
 
@@ -61,7 +64,7 @@ The most useful part of this file. Each one is a "before" that's easy to fall ba
 - Initialisation scale sets an untrained model's confidence: default embeddings gave arbitrary, consistent preferences (35% win rate); std 0.01 gave uniform choices (51%).
 - Premature convergence: a biased start can lock in a mediocre habit, because moves never tried are never learned.
 
-### Step 4 so far: REINFORCE
+### Step 4: REINFORCE
 
 - RL vocabulary: environment, state, action, reward, policy, credit assignment.
 - The loss's value is meaningless; only its gradient matters. Measure progress by win rate.
@@ -69,6 +72,14 @@ The most useful part of this file. Each one is a "before" that's easy to fall ba
 - Why average over games, not decisions: a game's probability is the product of its moves' probabilities, so its log is their sum.
 - Empty episodes and draws contribute zero but still count in the average.
 - `torch.tensor(...)` copies values and cuts the gradient link; `torch.stack` keeps it. A missing `grad_fn` in a printout is the tell.
+- Changing *when* you evaluate changes the whole run, because evaluation draws from the same random generator as training. Same code, two random streams: one run peaked at 97% and slid to 67%, the other stayed at 93-97%. One RL run proves little.
+- It beat RandomBot within 640 games and levelled off around 1,300 (about 94%). Later "gains" were mostly inside the +-2 point measurement noise.
+- What it learned, from wins and losses alone: never end a turn early, always Just Say No, play action and rent cards rather than banking them, build sets, and pay with money to keep properties. Habits that beat a random player, not necessarily a strong one.
+- Learning rate: 3e-4 was slower but steadier and ended higher (98-99%); 1e-2 swung wildly and fell to 12%, far below random. Small steps let batch noise cancel; big steps act on it in full.
+- In RL the policy makes its own training data, so a bad step produces worse data, and big steps saturate the softmax into near-certainty on bad moves. A confidently wrong player is worse than a random one. (PPO's step limit exists for this.)
+- Batch size is the same lever: batch 8 learned faster at first, then collapsed to 0% and stayed there. Noise per update scales like 1/sqrt(batch).
+- Starting biased (default init, 35%) slowed it and cost a few points mid-run, but it recovered: the bias was mild (entropy 0.91), so it still explored. Getting trapped needs near-certainty.
+- Sources of REINFORCE's noise: random deals and opponent, the policy's own sampling, one reward shared by about 60 decisions (credit assignment, the biggest), a coarse +-1 reward, data that depends on the policy, and the evaluation's own noise.
 
 ---
 
@@ -91,6 +102,11 @@ These come from your own code. Most will show up again in some other form.
 | `model(X[i])` | `X[i]` drops the batch dimension. Models take `[n, features]`. |
 | `exit()` inside a helper | Report misuse with an exception, so the caller gets a traceback and can react. |
 | `log(softmax(scores))` | The two-step form loses precision and can produce `-inf`. Use the stable combined version the library provides. |
+| `seed = g + seed + OFFSET` inside the loop | Reassigning an argument changes it for every later iteration. Seeds grew on each game. Give derived values their own names. |
+| Recording the index of the last game instead of the number played | Off by one: a 0-based index is one less than a count. |
+| `if i % eval_every == 0` after the update | `i` counts updates finished *before* this pass. Trace a loop by hand with a small number to see which value the test needs. |
+| `i+1 % eval_every` | `%` binds tighter than `+`, as `*` does. When in doubt, parenthesise. |
+| `print("game: {g}")` | Without the `f` prefix the braces print literally. |
 
 ---
 
