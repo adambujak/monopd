@@ -39,20 +39,30 @@ class PolicyNet(nn.Module):
 
     def __init__(self, obs_size=monopd.OBS_SIZE, num_actions=monopd.NUM_ACTIONS, hidden=256):
         super().__init__()
-        raise NotImplementedError("TODO part 1")
+        self.mlp = nn.Sequential(
+            nn.Linear(obs_size, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden)
+        )
+        self.actions = nn.Embedding(num_actions, hidden)
+
 
     def forward(self, obs, legal):
         """obs: float [obs_size], legal: int64 [K] action indices.
         Returns logits: float [K], one per legal action, in the same order as `legal`.
         """
-        raise NotImplementedError("TODO part 1")
+        h = self.mlp(obs)
+        E = self.actions(legal)
+        return E @ h
 
 
 # ===========================================================================
 # Part 2: choosing a move.
 # ===========================================================================
 
-def choose(model, game):
+def choose(model, game: monopd.Game) -> int:
     """Sample an action for the player about to decide in `game`.
 
     Score the legal actions with `model`, sample one with
@@ -60,7 +70,18 @@ def choose(model, game):
     and return the chosen ACTION INDEX as a Python int (not its position in
     the legal list).
     """
-    raise NotImplementedError("TODO part 2")
+    current_player = game.current_player()
+
+    if current_player is None:
+        raise RuntimeError("attempted to choose on game that is over")
+
+    obs = torch.tensor(game.observe(current_player))
+    legal_actions = torch.tensor(game.legal_actions())
+    scores = model(obs, legal_actions)
+    sampler = Categorical(logits=scores)
+    legal_action_pos = int(sampler.sample().item())
+
+    return int(legal_actions[legal_action_pos].item())
 
 
 # ===========================================================================
@@ -75,7 +96,20 @@ def play_game(model, seed, model_seat):
     makes the move: the model through `choose`, the bot through `bot.choose`.
     Returns the model seat's reward as a Python float: +1 win, -1 loss, 0 draw.
     """
-    raise NotImplementedError("TODO part 3")
+
+    game = monopd.Game(num_players=2, seed=seed)
+    random_bot = monopd.RandomBot(seed=seed)
+
+    while not game.is_over():
+
+        if game.current_player() == model_seat:
+            action = choose(model, game)
+        else:
+            action = random_bot.choose(game)
+
+        game.step(action)
+
+    return game.returns()[model_seat]
 
 
 # ===========================================================================
@@ -89,7 +123,14 @@ def evaluate(model, n_games, seed=0):
     model takes each seat equally often. No training here: no gradients, and
     put the model in eval mode. Returns wins / n_games as a Python float.
     """
-    raise NotImplementedError("TODO part 4")
+
+    with torch.no_grad():
+        model.eval()
+        wins = 0
+        for i in range(n_games):
+            if play_game(model, seed=seed+i, model_seat=i%2) > 0.0:
+                wins += 1
+        return wins / n_games
 
 
 # ===========================================================================
