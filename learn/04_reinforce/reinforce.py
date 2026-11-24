@@ -33,6 +33,25 @@ TRAIN_SEED_OFFSET = 1_000_000   # training games use seeds far from the evaluati
 # Part 1: play one game, keeping what learning needs.
 # ===========================================================================
 
+
+def choose(model: PolicyNet, game: monopd.Game) -> tuple[int, torch.Tensor]:
+    """ return action and log prob """
+    current_player = game.current_player()
+
+    if current_player is None:
+        raise RuntimeError("attempted to choose on finished game")
+
+    obs = torch.tensor(game.observe(current_player))
+    available_actions = torch.tensor(game.legal_actions())
+
+    scores = model(obs, available_actions)
+    sampler = Categorical(logits=scores)
+    available_actions_pos = sampler.sample()
+
+    action = int(available_actions[available_actions_pos])
+    return (action, sampler.log_prob(available_actions_pos))
+
+
 def play_episode(model, seed, model_seat):
     """Play one game, `model` in `model_seat` against RandomBot, WITH gradients.
 
@@ -46,7 +65,25 @@ def play_episode(model, seed, model_seat):
     Returns (log_probs, reward): a list with one 0-d tensor per non-forced
     model decision, in order, and the model seat's reward as a Python float.
     """
-    raise NotImplementedError("TODO part 1")
+
+    game = monopd.Game(num_players=2, seed=seed)
+    random_bot = monopd.RandomBot(seed=seed)
+    log_probs = []
+
+    while not game.is_over():
+        if game.current_player() == model_seat:
+            legal_actions = game.legal_actions()
+            if len(legal_actions) == 1:
+                action = legal_actions[0]
+            else:
+                action, log_prob = choose(model, game)
+                log_probs.append(log_prob)
+        else:
+            action = random_bot.choose(game)
+        game.step(action)
+
+    reward = game.returns()[model_seat]
+    return (log_probs, reward)
 
 
 # ===========================================================================
@@ -61,12 +98,30 @@ def reinforce_loss(episodes):
     it should make the moves of won games more likely and those of lost games
     less likely. An episode can have no log-probs at all.
     """
-    raise NotImplementedError("TODO part 2")
+
+    loss = torch.tensor([0.0])
+    for log_probs, r in episodes:
+        if len(log_probs) == 0:
+            continue
+        log_probs_tensor = torch.stack(log_probs)
+        game_loss = log_probs_tensor.sum() * r * -1.0
+        loss += game_loss
+
+    return loss.squeeze() / len(episodes)
 
 
 # ===========================================================================
 # Part 3: the training loop.
 # ===========================================================================
+
+def evaluate_model(model, eval_games):
+    with torch.no_grad():
+        model.eval()
+        win_rate = evaluate(model, eval_games, seed=0)
+        model.train()
+
+        return win_rate
+
 
 def train(model, n_updates, games_per_update=32, lr=1e-3, seed=0, eval_every=20, eval_games=400):
     """Train `model` with REINFORCE and Adam. Returns the evaluation history.
@@ -81,7 +136,33 @@ def train(model, n_updates, games_per_update=32, lr=1e-3, seed=0, eval_every=20,
 
     Returns a list of (training games played so far, win rate) pairs.
     """
-    raise NotImplementedError("TODO part 3")
+    results = []
+    g = 0
+
+    win_rate = evaluate_model(model, eval_games)
+    results.append((g, win_rate))
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    for i in range(n_updates):
+        episodes = []
+        optimizer.zero_grad()
+        for _ in range(games_per_update):
+            game_seed = g + seed + TRAIN_SEED_OFFSET
+            episodes.append(play_episode(model, game_seed, g % 2))
+            g += 1
+
+
+        loss = reinforce_loss(episodes)
+        loss.backward()
+        optimizer.step()
+
+        if (i+1) % eval_every == 0:
+            win_rate = evaluate_model(model, eval_games)
+            print(f"game: {g}, {win_rate}")
+            results.append((g, win_rate))
+
+
+    return results
 
 
 # ===========================================================================
