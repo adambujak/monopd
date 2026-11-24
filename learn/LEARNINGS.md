@@ -85,28 +85,19 @@ The most useful part of this file. Each one is a "before" that's easy to fall ba
 
 ## Bugs worth remembering
 
-These come from your own code. Most will show up again in some other form.
+ML and PyTorch bugs from your own code. Most will show up again in some other form.
 
 | Bug | Lesson |
 |---|---|
-| `int(len(X) * (1 - test_fraction))` gave 62 instead of 63 for n=90 | Float arithmetic before truncation. Compute the quantity you mean directly, and round deliberately. |
 | `squeeze()` instead of `squeeze(1)` | Name the dimension. A one-row batch otherwise collapses to a scalar. |
 | `nn.BCELoss` on logits | The "WithLogits" versions take raw scores. Read the traceback: it ended in the probability version. |
 | Epoch loss as a sum, then as a sum of means divided by rows | Numerator and denominator must count the same thing. The check passed both times: a green check isn't proof. |
 | A fresh `torch.Generator()` in `train` | An unseeded generator always starts from the same fixed seed, so `torch.manual_seed` had no effect. |
 | A ReLU after the output layer | Outputs that must be able to go negative (logits) can't pass through a ReLU. Accuracy stuck at chance is the symptom. |
-| A new `RandomBot` created on every decision | Create stateful objects once, where their lifetime begins (per game), not inside the loop. |
-| `g.winner()` | It's a property. "NoneType is not callable" meant the value was `None` (a draw caused by the bug above). |
-| `data[mixed]` on a dict, `torch.tensor(dict or ragged list)` | Know your container. A dict of tensors and a list of tensors need dict comprehensions, `torch.stack` or plain loops. |
+| `torch.tensor` on a dict, a ragged list, or a list of tensors | A tensor must be rectangular plain numbers. Index a dict of tensors per key; join tensors with `torch.stack`, which also keeps their gradients. |
 | A Python loop over 96,000 rows | Whole-tensor operations (masks, `isin`) are faster and can't misalign rows. |
 | `model(X[i])` | `X[i]` drops the batch dimension. Models take `[n, features]`. |
-| `exit()` inside a helper | Report misuse with an exception, so the caller gets a traceback and can react. |
 | `log(softmax(scores))` | The two-step form loses precision and can produce `-inf`. Use the stable combined version the library provides. |
-| `seed = g + seed + OFFSET` inside the loop | Reassigning an argument changes it for every later iteration. Seeds grew on each game. Give derived values their own names. |
-| Recording the index of the last game instead of the number played | Off by one: a 0-based index is one less than a count. |
-| `if i % eval_every == 0` after the update | `i` counts updates finished *before* this pass. Trace a loop by hand with a small number to see which value the test needs. |
-| `i+1 % eval_every` | `%` binds tighter than `+`, as `*` does. When in doubt, parenthesise. |
-| `print("game: {g}")` | Without the `f` prefix the braces print literally. |
 
 ---
 
@@ -117,5 +108,5 @@ General habits that came out of the work above, beyond any one step.
 - **Count independent units, not rows.** Rows from one game aren't independent, so judge both data size and measurement noise in games. About 1,000 test games gives about +-1.5 points; smaller differences between runs mean nothing.
 - **Predict before you run.** Your ranking of the overfitting fixes was mostly wrong in an informative way. The gap between prediction and result is where the learning happened.
 - **A passing check is evidence, not proof.** The summed epoch loss passed the toy's check; the empty-stage `nan` passed by accident. Ask what a check doesn't test.
-- **Print shapes, dtypes and `grad_fn` first when something's off.** Most of the bugs above (the dict passed to `torch.tensor`, the dropped batch dimension, the cut gradient) are visible in one print.
+- **Print shapes, dtypes and `grad_fn` first when something's off.** Most of the bugs above (the ragged list passed to `torch.tensor`, the dropped batch dimension, the cut gradient) are visible in one print.
 - **Keep the skepticism.** Pushing back on the embedding framing until it made sense found a real wording problem and produced a better mental model. Ask for the evidence behind a claim, including mine.
