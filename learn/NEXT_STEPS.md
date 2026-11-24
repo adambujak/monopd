@@ -100,6 +100,8 @@ Random games are noisy, so nowhere near 100% is expected: a lucky draw can flip 
 
 **Read first:** OpenAI's *Spinning Up*, "Part 3: Intro to Policy Optimization".
 
+**Setup:** the skeleton is in [`04_reinforce/`](04_reinforce/): `uv run python reinforce.py check` there.
+
 **What you'll write:**
 
 1. During a game, save `dist.log_prob(position)` for each decision your model makes.

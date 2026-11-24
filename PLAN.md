@@ -20,7 +20,7 @@ There are two goals, and the second matters as much as the first:
 | Learning step 1, PyTorch toy | Done: all parts pass; experiments run (linear 80%, mlp 100%, nolinear 79%, tiny 100% train / 69% test) |
 | Learning step 2, win predictor | Done: 63% test (55% first quarter, 73% last), 90% train. Row split leaks (77%). Best fix: 20k games + dropout, 69% test |
 | Learning step 3, policy network | Done: plays full games; untrained it wins 35% with default embedding init (arbitrary biases) and 51% with std 0.01 (uniform choices) |
-| Learning step 4, REINFORCE | **Next** |
+| Learning step 4, REINFORCE | **In progress** |
 | Learning steps 5–7 | Not started |
 
 ## Learning plan
