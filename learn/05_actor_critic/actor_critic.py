@@ -106,10 +106,21 @@ class ActorCritic(PolicyNet):
 
     def __init__(self, obs_size=monopd.OBS_SIZE, num_actions=monopd.NUM_ACTIONS, hidden=256):
         super().__init__(obs_size, num_actions, hidden)
-        raise NotImplementedError("TODO part 1")
+        self.value_head = nn.Sequential(
+            nn.Linear(obs_size, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, 1),
+            nn.Tanh(),
+        )
 
     def forward(self, obs, legal):
-        raise NotImplementedError("TODO part 1")
+        logits = super().forward(obs, legal)
+        value = self.value_head(obs).squeeze()
+        return (logits, value)
 
 
 # ===========================================================================
